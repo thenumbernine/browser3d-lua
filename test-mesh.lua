@@ -2,6 +2,7 @@ local gl = require 'gl'
 local ig = require 'imgui'
 local vec3f = require 'vec-ffi.vec3f'
 local matrix_ffi = require 'matrix.ffi'
+matrix_ffi.real = 'float'
 return {
 	title = 'mesh demo',
 	init = function(self)
@@ -10,21 +11,13 @@ return {
 		self.mesh = require 'mesh.objloader'():load'cube.obj'
 		self.shader = self.mesh:makeShader()
 		self.shader:useNone()
-		self.lightDir = vec3f(1,0,0)
-		matrix_ffi.real = 'float'
 		self.modelMatrix = matrix_ffi{{1,0,0,0},{0,1,0,0},{0,0,1,0},{0,0,0,1}}
 		self.viewMatrix = matrix_ffi.zeros{4,4}
 		self.projectionMatrix = matrix_ffi.zeros{4,4}
-	end,
-	update = function(self, app)
 		gl.glEnable(gl.GL_DEPTH_TEST)
-		gl.glClearColor(0,0,0,0)
+	end,
+	update = function(self)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-		gl.glMatrixMode(gl.GL_PROJECTION)
-		gl.glLoadIdentity()
-		gl.glMatrixMode(gl.GL_MODELVIEW)
-		gl.glLoadIdentity()
-		app.view:setup(app.width / app.height)
 		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, self.viewMatrix.ptr)
 		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, self.projectionMatrix.ptr)
 		--[[
@@ -61,7 +54,6 @@ return {
 		}
 		self.shader:useNone()
 	end,
-	updateGUI = function(self, app)
-		ig.igText('here')
+	updateGUI = function(self)
 	end,
 }

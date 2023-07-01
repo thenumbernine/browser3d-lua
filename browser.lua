@@ -68,6 +68,7 @@ end
 function Browser:setPageProtected(gen, ...)
 	self.page = gen(self, ...)
 	if self.page then
+		self.page.app = self
 		sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
 	end
 end
@@ -109,10 +110,15 @@ function Browser:safecallPage(field, ...)
 	if not page then return end
 	local cb = page[field]
 	if not cb then return end
-	return self:safecall(cb, page, self, ...)
+	return self:safecall(cb, page, ...)
 end
 
 function Browser:update(...)
+	-- super calls matrix setup and calls updategui
+	-- so for the matrix to be setup before the first update, 
+	-- i have to call it here
+	self.view:setup(self.width / self.height)
+	
 	self:safecallPage('update', ...)
 	-- hmmmm OpenGL state issues ...
 	gl.glUseProgram(0)
