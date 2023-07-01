@@ -123,7 +123,7 @@ end
 
 function Browser:updateGUI(...)
 	if ig.igBeginMainMenuBar() then
-		if ig.luatableTooltipInputText('url', self, 'url', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+		if ig.luatableInputText('', self, 'url', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
 			self:loadURL()
 		end
 		ig.igEndMainMenuBar()
