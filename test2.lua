@@ -5,7 +5,7 @@ local ig = require 'imgui'
 
 local Page ={}
 
-Page.title = 'testing'
+Page.title = 'testing 2'
 
 function Page:init()
 	self.shader = Program{

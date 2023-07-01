@@ -12,7 +12,7 @@ function Page:updateGUI()
 		ig.igEnd()
 	end
 end
-	
+
 function Page:update()
 	gl.glClearColor(0,0,.3,1)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)

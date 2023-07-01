@@ -60,39 +60,40 @@ function Browser:handleData(data)
 end
 
 function Browser:setPage(gen, ...)
-	self:safecall(function()
-		self.page = gen(self)
+	self:safecall(function(...)
+		self.page = gen(self, ...)
 		if self.page then
 			sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
 		end
-	end)
+	end, ...)
 	self:safecallPage'init'
 end
 
 function Browser:safecall(cb, ...)
 	local errstr
 	xpcall(function(...)
-		cb(page, ...)
+		cb(...)
 	end, function(err)
 		errstr = err..'\n'..debug.traceback()
 	end, ...)
 	if errstr then
-		self:setErrorPage(errstr)
+		-- if we were handling an error, and we got an error ...
+		if self.handlingError then
+			-- bail?
+			print'error handling error:'
+			print(errstr)
+			os.exit()
+			self.page = nil
+		else
+			self:setErrorPage(errstr)
+		end
 	end
 end
 
 function Browser:setErrorPage(errstr)
-	--[[
-	self:setPage(errorPage, self, errstr)
-	--]]
-	xpcall(function()
-		self.page = errorPage(self, errstr)
-	end, function(err)
-		errstr = err..'\n'..debug.traceback()
--- or exit?
-print('error handling error:', errstr)
-		self.page = nil
-	end)
+	self.handlingError = true
+	self:setPage(errorPage, errstr)
+	self.handlingError = false
 end
 
 function Browser:safecallPage(field, ...)
@@ -100,7 +101,7 @@ function Browser:safecallPage(field, ...)
 	if not page then return end
 	local cb = page[field]
 	if not cb then return end
-	return self:safecall(cb, ...)
+	return self:safecall(cb, page, ...)
 end
 
 function Browser:update(...)
