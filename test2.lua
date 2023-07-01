@@ -8,7 +8,6 @@ local Page ={}
 Page.title = 'testing'
 
 function Page:init()
-	error'here'
 	self.shader = Program{
 		vertexCode = [[
 #version 460

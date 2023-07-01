@@ -10,7 +10,7 @@ Browser.title = 'Browser'
 function Browser:initGL(...)
 	Browser.super.initGL(self, ...)
 
-	self.url = self.url or 'file://./test.lua'
+	self.url = self.url or 'file://test.lua'
 	self:loadURL()
 end
 
@@ -20,7 +20,7 @@ function Browser:loadURL(url)
 	if not proto then
 		-- try accessing it as a file
 		if file(url):exists() then
-			self.url = 'file:///'..url
+			self.url = 'file://'..url
 			self:loadFile(url)
 			return
 		else
@@ -50,52 +50,66 @@ end
 
 function Browser:handleData(data)
 	-- now what kind of format should the file be?
-	local fn, err = load(data, self.url)
-	if not fn then
+	local gen, err = load(data, self.url)
+	if not gen then
 		-- report compile error
-	else
-		xpcall(function()
-			self.page = fn(self)
-			if self.page then
-				sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
-			end
-		end, function(err)
-			self.page = errorPage(err)
-		end)
-		self:safecall'init'
+		self:setErrorPage('failed to load '..tostring(self.url))
+		return
 	end
+	self:setPage(gen, self)
 end
 
-function Browser:safecall(field, ...)
-	local page = self.page
-	if not page then return end
-	local cb = page[field]
-	if not cb then return end
+function Browser:setPage(gen, ...)
+	self:safecall(function()
+		self.page = gen(self)
+		if self.page then
+			sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
+		end
+	end)
+	self:safecallPage'init'
+end
+
+function Browser:safecall(cb, ...)
 	local errstr
 	xpcall(function(...)
 		cb(page, ...)
 	end, function(err)
 		errstr = err..'\n'..debug.traceback()
-print('errstr', errstr)	
 	end, ...)
 	if errstr then
-		xpcall(function()
-			self.page = errorPage(errstr)
-		end, function(err)
-			local errstr2 = err..'\n'..debug.traceback()
-print('errstr2', errstr2)
-			self.page = nil
-		end)
+		self:setErrorPage(errstr)
 	end
 end
 
+function Browser:setErrorPage(errstr)
+	--[[
+	self:setPage(errorPage, self, errstr)
+	--]]
+	xpcall(function()
+		self.page = errorPage(self, errstr)
+	end, function(err)
+		errstr = err..'\n'..debug.traceback()
+-- or exit?
+print('error handling error:', errstr)
+		self.page = nil
+	end)
+end
+
+function Browser:safecallPage(field, ...)
+	local page = self.page
+	if not page then return end
+	local cb = page[field]
+	if not cb then return end
+	return self:safecall(cb, ...)
+end
+
 function Browser:update(...)
-	self:safecall('update', ...)
+	self:safecallPage('update', ...)
 	return Browser.super.update(self, ...)
 end
 
 function Browser:event(...)
-	self:safecall('event', ...)
+	self:safecallPage('event', ...)
 	return Browser.super.event(self, ...)
 end
 
@@ -106,7 +120,7 @@ function Browser:updateGUI(...)
 		end
 		ig.igEndMainMenuBar()
 	end
-	self:safecall('updateGUI', ...)
+	self:safecallPage('updateGUI', ...)
 	return Browser.super.updateGUI(self, ...)
 end
 
