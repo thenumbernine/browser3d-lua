@@ -14,6 +14,10 @@ function Browser:initGL(...)
 	self:loadURL()
 end
 
+-- TODO some set of functions which error() shouldn't be permitted to be called within
+-- only setErrorPage instead.
+-- I'd say just wrap this all in xpcall, 
+-- but I'm already doing that within setPage
 function Browser:loadURL(url)
 	url = url or self.url
 	local proto, rest = url:match'^([^:]*)://(.*)'
@@ -24,7 +28,7 @@ function Browser:loadURL(url)
 			self:loadFile(url)
 			return
 		else
-			error("url is ill-formatted "..tostring(url))
+			self:setErrorPage("url is ill-formatted "..tostring(url))
 		end
 	end
 	if proto == 'file' then
@@ -32,16 +36,17 @@ function Browser:loadURL(url)
 	elseif proto == 'http' then
 		self:loadHTTP(url)
 	else
-		error("unknown protocol "..tostring(proto))
+		self:setErrorPage("unknown protocol "..tostring(proto))
 	end
 end
 
 function Browser:loadFile(filename)
 	if not file(filename):exists() then
 		-- ... have the browser show a 'file missing' page
-		return
+		self:setErrorPage("couldn't load file "..tostring(filename))
+	else
+		self:handleData(file(filename):read())
 	end
-	self:handleData(file(filename):read())
 end
 
 function Browser:loadHTTP(url)
@@ -77,7 +82,7 @@ end
 
 function Browser:safecall(cb, ...)
 	local res, errstr = xpcall(cb, captureTraceback, ...)
-	if res then return end
+	if res then return true end
 		
 	-- if we were handling an error, and we got an error ...
 	if self.handlingError then
@@ -92,6 +97,7 @@ function Browser:safecall(cb, ...)
 end
 
 function Browser:setErrorPage(errstr)
+	-- prevent infinite loops of setPage / setErrorPage
 	self.handlingError = true
 	self:setPage(errorPage, errstr)
 	self.handlingError = false
