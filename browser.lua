@@ -1,6 +1,7 @@
 local file = require 'ext.file'	-- TODO rename to path
 local sdl = require 'ffi.sdl'
 local ig = require 'imgui'
+local gl = require 'gl'
 local errorPage = require 'browser.errorpage'
 
 local Browser = require 'imguiapp.withorbit'()
@@ -108,11 +109,14 @@ function Browser:safecallPage(field, ...)
 	if not page then return end
 	local cb = page[field]
 	if not cb then return end
-	return self:safecall(cb, page, ...)
+	return self:safecall(cb, page, self, ...)
 end
 
 function Browser:update(...)
 	self:safecallPage('update', ...)
+	-- hmmmm OpenGL state issues ...
+	gl.glUseProgram(0)
+	gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 	return Browser.super.update(self, ...)
 end
 
