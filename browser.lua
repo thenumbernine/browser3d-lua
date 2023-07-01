@@ -59,34 +59,35 @@ function Browser:handleData(data)
 	self:setPage(gen, self)
 end
 
+function Browser:setPageProtected(gen, ...)
+	self.page = gen(self, ...)
+	if self.page then
+		sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
+	end
+end
+
 function Browser:setPage(gen, ...)
-	self:safecall(function(...)
-		self.page = gen(self, ...)
-		if self.page then
-			sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
-		end
-	end, ...)
+	self:safecall(self.setPageProtected, self, gen, ...)
 	self:safecallPage'init'
 end
 
+local function captureTraceback(err)
+	return err..'\n'..debug.traceback()
+end
+
 function Browser:safecall(cb, ...)
-	local errstr
-	xpcall(function(...)
-		cb(...)
-	end, function(err)
-		errstr = err..'\n'..debug.traceback()
-	end, ...)
-	if errstr then
-		-- if we were handling an error, and we got an error ...
-		if self.handlingError then
-			-- bail?
-			print'error handling error:'
-			print(errstr)
-			os.exit()
-			self.page = nil
-		else
-			self:setErrorPage(errstr)
-		end
+	local res, errstr = xpcall(cb, captureTraceback, ...)
+	if res then return end
+		
+	-- if we were handling an error, and we got an error ...
+	if self.handlingError then
+		-- bail?
+		print'error handling error:'
+		io.stderr:write(errstr,'\n')
+		os.exit()
+		self.page = nil
+	else
+		self:setErrorPage(errstr)
 	end
 end
 
