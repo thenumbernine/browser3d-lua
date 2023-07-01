@@ -1,5 +1,8 @@
 local file = require 'ext.file'	-- TODO rename to path
 local sdl = require 'ffi.sdl'
+local ig = require 'imgui'
+local errorPage = require 'browser.errorpage'
+
 local Browser = require 'imguiapp.withorbit'()
 
 Browser.title = 'Browser'
@@ -7,12 +10,23 @@ Browser.title = 'Browser'
 function Browser:initGL(...)
 	Browser.super.initGL(self, ...)
 
-	self:loadURL'file://./test.lua'
+	self.url = self.url or 'file://./test.lua'
+	self:loadURL()
 end
 
 function Browser:loadURL(url)
+	url = url or self.url
 	local proto, rest = url:match'^([^:]*)://(.*)'
-	if not proto then error("url is ill-formatted "..tostring(url)) end
+	if not proto then
+		-- try accessing it as a file
+		if file(url):exists() then
+			self.url = 'file:///'..url
+			self:loadFile(url)
+			return
+		else
+			error("url is ill-formatted "..tostring(url))
+		end
+	end
 	if proto == 'file' then
 		self:loadFile(rest)
 	elseif proto == 'http' then
@@ -35,9 +49,8 @@ function Browser:loadHTTP(url)
 end
 
 function Browser:handleData(data)
-
 	-- now what kind of format should the file be?
-	local fn, err = load(data)
+	local fn, err = load(data, self.url)
 	if not fn then
 		-- report compile error
 	else
@@ -45,34 +58,55 @@ function Browser:handleData(data)
 			self.page = fn(self)
 			if self.page then
 				sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
-				if self.page.init then
-					self.page:init()
-				end
 			end
 		end, function(err)
-			-- report execution error
+			self.page = errorPage(err)
+		end)
+		self:safecall'init'
+	end
+end
+
+function Browser:safecall(field, ...)
+	local page = self.page
+	if not page then return end
+	local cb = page[field]
+	if not cb then return end
+	local errstr
+	xpcall(function(...)
+		cb(page, ...)
+	end, function(err)
+		errstr = err..'\n'..debug.traceback()
+print('errstr', errstr)	
+	end, ...)
+	if errstr then
+		xpcall(function()
+			self.page = errorPage(errstr)
+		end, function(err)
+			local errstr2 = err..'\n'..debug.traceback()
+print('errstr2', errstr2)
+			self.page = nil
 		end)
 	end
 end
 
 function Browser:update(...)
-	if self.page and self.page.update then
-		self.page:update()
-	end
+	self:safecall('update', ...)
 	return Browser.super.update(self, ...)
 end
 
 function Browser:event(...)
-	if self.page and self.page.event then
-		self.page:event(...)
-	end
+	self:safecall('event', ...)
 	return Browser.super.event(self, ...)
 end
 
 function Browser:updateGUI(...)
-	if self.page and self.page.updateGUI then
-		self.page:updateGUI(...)
+	if ig.igBeginMainMenuBar() then
+		if ig.luatableTooltipInputText('url', self, 'url', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
+			self:loadURL()
+		end
+		ig.igEndMainMenuBar()
 	end
+	self:safecall('updateGUI', ...)
 	return Browser.super.updateGUI(self, ...)
 end
 
