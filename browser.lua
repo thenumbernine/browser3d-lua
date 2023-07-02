@@ -1,48 +1,15 @@
 -- [[ cache all ffi.cdef calls since I'm using a nested package system, which means double ffi.cdef'ing things, which luajit doesn't like ...
---[=[ here's what a double cdef looks like:
-double cdef
-first stack
-stack traceback:
-	./browser.lua:81: in function 'cdef'
-	/home/chris/Projects/lua/ffi/sdl.lua:8: in main chunk
-	[C]: in function 'require'
-	./browser.lua:100: in main chunk
-	[C]: in function 'require'
-	./run.lua:2: in main chunk
-	[C]: at 0x564ec6ece380
-second stack
-stack traceback:
-	./browser.lua:81: in function 'cdef'
-	/home/chris/Projects/lua/ffi/sdl.lua:8: in main chunk
-	[string "sandbox of file://pages/test.lua"]:28: in function 'require'
-	/home/chris/Projects/lua/glapp/glapp.lua:2: in main chunk
-	[string "sandbox of file://pages/test.lua"]:28: in function 'require'
-	[string "sandbox of file://pages/test.lua"]:36: in main chunk
-	./browser.lua:357: in function 'handleData'
-	./browser.lua:183: in function 'loadFile'
-	./browser.lua:163: in function 'loadURL'
-	./browser.lua:129: in function 'initGL'
-	/home/chris/Projects/lua/glapp/glapp.lua:150: in function </home/chris/Projects/lua/glapp/glapp.lua:100>
-	[C]: in function 'xpcall'
-	/home/chris/Projects/lua/glapp/glapp.lua:100: in function 'run'
-	./run.lua:4: in main chunk
-	[C]: at 0x564ec6ece380
---]=]
 local ffi = require 'ffi'
 do
-	
 	-- also in preproc but I don't want to include other stuff
 	local function removeCommentsAndApplyContinuations(code)
-		
 		-- should line continuations \ affect single-line comments?
 		-- if so then do this here
 		-- or should they not?  then do this after.
 		repeat
 			local i, j = code:find('\\\n')
 			if not i then break end
-	--print('was', tolua(code))
 			code = code:sub(1,i-1)..' '..code:sub(j+1)
-	--print('is', tolua(code))
 		until false
 
 		-- remove all /* */ blocks first
@@ -53,9 +20,7 @@ do
 			if not j then
 				error("found /* with no */")
 			end
-	--print('was', tolua(code))
 			code = code:sub(1,i-1)..code:sub(j+2)
-	--print('is', tolua(code))
 		until false
 
 		-- [[ remove all // \n blocks first
@@ -63,9 +28,7 @@ do
 			local i = code:find('//',1,true)
 			if not i then break end
 			local j = code:find('\n',i+2,true) or #code
-	--print('was', tolua(code))
 			code = code:sub(1,i-1)..code:sub(j)
-	--print('is', tolua(code))
 		until false
 		--]]
 
@@ -81,14 +44,7 @@ do
 		x = removeCommentsAndApplyContinuations(x)
 		if x:match'^%s*$' then return end
 		local stack = debug.traceback()
-		if alreadycdefd[x] then
---print('double cdef')
---print('first stack')
---print(alreadycdefd[x])
---print('second stack')
---print(stack)
-			return
-		end
+		if alreadycdefd[x] then return end
 		alreadycdefd[x] = stack
 		old_ffi_cdef(x)
 	end
@@ -97,28 +53,8 @@ do
 	local old_ffi_metatype = ffi.metatype
 	local alreadymetatype = {}
 	function ffi.metatype(typename, mt)
-		--[=[
-		-- first line: stack traceback:
-		-- second line: ./browser.lua:101: in function 'metatype'
-		-- third line ... what we're interested in.
-		local stack = debug.traceback()
-		local key
-		local i = 0
-		for l in stack:gmatch('([^\n]*)\n') do
-			i = i + 1
-			if i == 3 then
-				key = l
-				break
-			end
-		end
-		assert(key)
-		--]=]
-		-- [=[ or should I just use the typename as the key?
 		local key = typename
-		--]=]
-		if alreadymetatype[key] then 
-			return alreadymetatype[key]
-		end
+		if alreadymetatype[key] then return alreadymetatype[key] end
 		alreadymetatype[key] = old_ffi_metatype(typename, mt)
 		return alreadymetatype[key]
 	end
@@ -303,8 +239,8 @@ function Browser:handleData(data)
 	env.arg = {}
 	-- set browser as a global or package?
 	env.browser = self
-print('env', env)
-print('env.browser', env.browser)
+--print('env', env)
+--print('env.browser', env.browser)
 	-- make sure our sandbox _G points back to itself so the page can't modify the browser env
 	env._G = env
 
@@ -346,16 +282,10 @@ print('env.browser', env.browser)
 	-- also load ffi - with its modified cdef
 	env.package.loaded.ffi = ffi
 
-	print('browser _G before sandbox', _G)
-	assert(load([[
-
+	do
+		local gen, err = load([[
 -- without this, subequent require()'s will have the original _G
 setfenv(0, _G)
-
-print('sandbox package', package)
-print('sandbox package.searchers', package.searchers)
-print('sandbox os', os)
-print('sandbox package.loaded.os', package.loaded.os)
 
 -- now I guess I need my own require() function
 -- and maybe get rid of package searchers and loaders? maybe? not sure?
@@ -363,7 +293,6 @@ local function findchunk(name)
 	local errors = ("module '%s' not found"):format(name)
 	for i,searcher in ipairs(package.searchers) do
 		local chunk = searcher(name)
---print('searcher',i,'got',chunk)
 		if type(chunk) == 'function' then
 			return chunk
 		elseif type(chunk) == 'string' then
@@ -379,14 +308,15 @@ function require(name)
 	end
 	return package.loaded[name]
 end
-
-print('sandbox browser', browser)
-print('sandbox package.loaded.glapp before', package.loaded.glapp)
--- TODO this isn't putting requires in our package.laded ...
-require 'glapp'
-print('sandbox package.loaded.glapp after', package.loaded.glapp)
-]], 'sandbox of '..self.url, nil, env))()
-	print('browser _G after sandbox', _G)
+]], 'init sandbox of '..self.url, nil, env)
+		if not gen then
+			-- report compile error
+			self:setErrorPage('failed to load '..tostring(self.url))
+			return
+		else
+			if not self:safecall(gen) then return end
+		end
+	end
 	--]==]
 
 	-- get our page generation module
