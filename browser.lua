@@ -13,10 +13,42 @@ Browser.title = 'Browser'
 function Browser:initGL(...)
 	Browser.super.initGL(self, ...)
 
+	--[[ use a package.searchers and give it precedence over local requires
+	-- TODO just do this for the page env' require() and that way we can block via http request
+	-- without blocking on the main thread
+	-- that'd doubly be good to prevent dif pages' package.loaded[] 's from mixing with one another
+	table.insert(package.searchers, 1, function(name)
+print('here', self.proto, name)
+		if self.proto ~= 'file' then
+			local res, err = self:requireRelativeToLastPage(name)
+			return res or err
+		end
+	end)
+	--]]
+
 	self.threads = ThreadManager()
+
 
 	self.url = self.url or 'file://pages/test.lua'
 	self:loadURL()
+end
+
+function Browser:requireRelativeToLastPage(name)
+	local proto, rest = name:match'^([^:]*)://(.*)'
+	-- if no prefix is found ...
+	if not proto then
+		-- then first try assuming it is a relative path
+		if self.proto then
+			-- TODO here make a URL with path or whatever and change to 'name'
+		end
+	end
+	if proto == 'file' then
+		self:loadFile(rest)
+	elseif proto == 'http' then
+		self:loadHTTP(url)
+	else
+		self:setErrorPage("unknown protocol "..tostring(proto))
+	end
 end
 
 -- TODO some set of functions which error() shouldn't be permitted to be called within
@@ -26,9 +58,11 @@ end
 function Browser:loadURL(url)
 	url = url or self.url
 	local proto, rest = url:match'^([^:]*)://(.*)'
+	self.proto = proto
 	if not proto then
 		-- try accessing it as a file
 		if file(url):exists() then
+			self.proto = 'file'
 			self.url = 'file://'..url
 			self:loadFile(url)
 			return
@@ -71,7 +105,29 @@ function Browser:handleData(data)
 	-- sandbox env
 	-- [==[ simple sandbox:
 	local env = setmetatable({browser=self}, {__index=_G})
+	--[[ env.require to require remote ...
+	env.require = function(name)
+		local v = package.loaded[name]
+		if v ~= nil then return v end
+		-- first try same url protocol
+		if self.proto ~= 'file' then
+			-- hmm how about file ext ...
+			-- now I need one extension for lua require files, another for lua-driven pages ...
+			-- or not? maybe I just need the page-loader to be routed through the remote-require function?
+			-- TODO this is basically another package.searchers
+			local cb, err = self:requireRelativeToLastPage(name)
+			if cb then
+				v = cb(name) or true
+				package.loaded[name] = v
+				return v
+			end
+		end
+		return require(name)
+	end
+	--]]
 	--]==]
+
+
 	--[==[ trying to sandbox _G from require()
 	-- this was my attempt to make a quick fix to using all previous glapp subclasses as pages ...
 	-- the problem occurs because browser here already require'd glapp, which means glapp is in package.loaded, and with its already-defined _G, which has no 'browser'
@@ -203,7 +259,6 @@ print('sandbox package.loaded.glapp after', package.loaded.glapp)
 ]], 'sandbox of '..self.url, nil, env))()
 	print('browser _G after sandbox', _G)
 	--]==]
-
 
 	-- get our page generation module
 	local gen, err = load(data, self.url, nil, env)

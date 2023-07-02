@@ -1,5 +1,4 @@
 local gl = require 'gl'
-local sdl = require 'ffi.sdl'
 local ig = require 'imgui'
 
 local Page = {}
@@ -14,7 +13,7 @@ end
 function Page:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-	local t = sdl.SDL_GetTicks() * 1e-3
+	local t = os.clock()
 	gl.glRotatef(t * 30, 0, 1, 0)
 
 	gl.glBegin(gl.GL_TRIANGLES)
