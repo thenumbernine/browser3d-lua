@@ -70,11 +70,16 @@ local gl = require 'gl'
 local ThreadManager = require 'threadmanager'
 local errorPage = require 'browser.errorpage'
 
+local initcwd = file:cwd()
+
 local Browser = require 'imguiapp.withorbit'()
 
 Browser.title = 'Browser'
 
 function Browser:initGL(...)
+	-- save this to be reset each time a new page is loaded
+	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
+	
 	Browser.super.initGL(self, ...)
 
 	--[[ use a package.searchers and give it precedence over local requires
@@ -147,6 +152,14 @@ function Browser:loadFile(filename)
 		-- ... have the browser show a 'file missing' page
 		self:setErrorPage("couldn't load file "..tostring(filename))
 	else
+		-- save relative paths ...
+		-- save initial cwd
+		-- then cd back to it before setting relative file path
+		file(initcwd):cd()
+		local dir = file(filename):getdir()
+		print('dir', dir)
+		--file(dir):cd()
+		
 		self:handleData(file(filename):read())
 	end
 end
@@ -258,7 +271,6 @@ function Browser:handleData(data)
 	4) 'all in one loader'
 	--]]
 	env.package.searchers = shallowcopy(_G.package.searchers)
-	--env.package.searchers =
 
 	env.package.loaded = {}
 	for _,field in ipairs{
@@ -338,6 +350,11 @@ end
 
 function Browser:setPage(gen, ...)
 	self:safecall(self.setPageProtected, self, gen, ...)
+	
+	-- init GL state
+	gl.glPopAttrib()
+	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
+
 	-- TODO this on another thread? for blocking requires to load remote scripts
 	self:safecallPage'init'
 end
