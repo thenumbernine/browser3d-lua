@@ -6,16 +6,13 @@ local Page = {}
 
 Page.title = 'testing'
 
-function Page:updateGUI()
-	if ig.igBegin('test window', nil, 0) then
-		ig.igText('test text')
-		ig.igEnd()
-	end
+function Page:init()
+	gl.glEnable(gl.GL_DEPTH_TEST)
+	gl.glClearColor(0,0,.3,1)
 end
 
 function Page:update()
-	gl.glClearColor(0,0,.3,1)
-	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
 	local t = sdl.SDL_GetTicks() * 1e-3
 	gl.glRotatef(t * 30, 0, 1, 0)
@@ -28,6 +25,13 @@ function Page:update()
 	gl.glColor3f(0, 0, 1)
 	gl.glVertex3f(0, 6, 0)
 	gl.glEnd()
+end
+
+function Page:updateGUI()
+	if ig.igBegin('test window', nil, 0) then
+		ig.igText('test text')
+		ig.igEnd()
+	end
 end
 
 return Page

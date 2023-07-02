@@ -1,4 +1,3 @@
-print('browser/browser.lua _G', _G)
 local file = require 'ext.file'	-- TODO rename to path
 local table = require 'ext.table'
 local sdl = require 'ffi.sdl'
@@ -56,7 +55,12 @@ function Browser:loadFile(filename)
 end
 
 function Browser:loadHTTP(url)
-	self:handleData(require 'socket.http'.request(url))
+	local data, reason = require 'socket.http'.request(url)
+	if not data then
+		self:setErrorPage("couldn't load url "..tostring(url)..': '..tostring(reason))
+	else
+		self:handleData(data)
+	end
 end
 
 local function shallowcopy(t)
@@ -159,7 +163,6 @@ print('env.browser', env.browser)
 
 	print('browser _G before sandbox', _G)
 	assert(load([[
-print('sandbox _G', _G)
 
 -- without this, subequent require()'s will have the original _G
 setfenv(0, _G)

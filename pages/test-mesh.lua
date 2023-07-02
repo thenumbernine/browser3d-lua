@@ -15,6 +15,7 @@ return {
 		self.viewMatrix = matrix_ffi.zeros{4,4}
 		self.projectionMatrix = matrix_ffi.zeros{4,4}
 		gl.glEnable(gl.GL_DEPTH_TEST)
+		gl.glClearColor(0,0,0,0)
 	end,
 	update = function(self)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
