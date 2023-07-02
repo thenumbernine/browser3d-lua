@@ -32,6 +32,7 @@ return {
 		}
 		--]]
 		self.mesh:draw{
+			-- TODO why isn't VAO working?
 			method = 'immediate',
 			shader = self.shader,
 			beginGroup = function(g)
