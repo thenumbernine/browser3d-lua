@@ -99,7 +99,7 @@ print('here', self.proto, name)
 	self.threads = ThreadManager()
 
 	self.url = self.url or 'file://pages/test.lua'
-	self:loadURL()
+	self:setPageURL()
 end
 
 function Browser:requireRelativeToLastPage(name)
@@ -112,30 +112,54 @@ function Browser:requireRelativeToLastPage(name)
 		end
 	end
 	if proto == 'file' then
-		self:loadFile(rest)
+		self:setPageFile(rest)
 	elseif proto == 'http' then
-		self:loadHTTP(url)
+		self:setPageHTTP(url)
 	else
 		self:setErrorPage("unknown protocol "..tostring(proto))
 	end
 end
 
--- TODO some set of functions which error() shouldn't be permitted to be called within
+-- this function will expect a URL in proper format
+-- no implicit-files like :setPageURL (which should handle whatever the user puts in the titlebar)
+-- it'll return data or return false and an error message
+function Browser:loadURL(url)
+	local proto, rest = url:match'^([^:]*)://(.*)'
+	if proto == 'file' then
+		return self:loadFile(rest)
+	elseif proto == 'http' then
+		return self:loadHTTP(url)
+	else
+		return nil, "unknown protocol "..tostring(proto)
+	end
+end
+
+function Browser:loadFile(filename)
+	return file(filename):read()
+end
+
+function Browser:loadHTTP(url)
+	return require 'socket.http'.request(url)
+end
+
+-- TODO delineate some set of functions which error() shouldn't be permitted to be called within
 -- only setErrorPage instead.
 -- I'd say just wrap this all in xpcall,
 -- but I'm already doing that within setPage
-function Browser:loadURL(url)
+--
+-- TODO have this use 'loadURL'
+function Browser:setPageURL(url)
 	url = url or self.url
 	local proto, rest = url:match'^([^:]*)://(.*)'
 	self.proto = proto
 	if not proto then
 		-- try accessing it as a file
-		print('file(url):exists()', file(url):exists(), url)
+--print('file(url):exists()', file(url):exists(), url)
 		if file(url):exists() then
 			proto = 'file'
 			self.proto = 'file'
 			self.url = 'file://'..url
-			self:loadFile(url)
+			self:setPageFile(url)
 			return
 		else
 			self:setErrorPage("url is ill-formatted / file not found: "..tostring(url))
@@ -143,24 +167,26 @@ function Browser:loadURL(url)
 		end
 	end
 	if proto == 'file' then
-		self:loadFile(rest)
+		self:setPageFile(rest)
 	elseif proto == 'http' then
-		self:loadHTTP(url)
+		self:setPageHTTP(url)
 	else
 		self:setErrorPage("unknown protocol "..tostring(proto))
 	end
 end
 
-function Browser:loadFile(filename)
+function Browser:setPageFile(filename)
 	-- save relative paths ...
 	-- save initial cwd
 	-- then cd back to it before setting relative file path
 	-- or should I sandbox all io.open() calls to be relative to the page path?
 	-- I'll be doing that for remote stuff anyways so TODO
+	--[[
 	file(initcwd):cd()
 	local dir, name = file(filename):getdir()
 	file(dir):cd()
 	filename = name
+	--]]
 
 	if not file(filename):exists() then
 		-- ... have the browser show a 'file missing' page
@@ -177,7 +203,7 @@ function Browser:loadFile(filename)
 	self:handleData(data)
 end
 
-function Browser:loadHTTP(url)
+function Browser:setPageHTTP(url)
 	local data, reason = require 'socket.http'.request(url)
 	if not data then
 		self:setErrorPage("couldn't load url "..tostring(url)..': '..tostring(reason))
@@ -210,7 +236,8 @@ function Browser:handleData(data)
 			-- TODO this is basically another package.searchers
 			local cb, err = self:requireRelativeToLastPage(name)
 			if cb then
-				v = cb(name) or true
+				v = cb(name) 
+				if v == nil then v = true end
 				package.loaded[name] = v
 				return v
 			end
@@ -293,6 +320,19 @@ function Browser:handleData(data)
 	--]]
 	env.package.searchers = shallowcopy(_G.package.searchers)
 
+	-- [[ inserting the searcher first means possibility of every resource being delayed in its loading for remote urls
+	table.insert(env.package.searchers, 1, function(name)
+		-- very first, try relative URL to our page
+		local data, err = self:searchURLRelative(name)
+		if data then
+			local gen
+			gen, err = load(data, self.url..'/'..name, nil, self.env)
+			if gen then return gen end
+		end
+		return err
+	end)
+	--]]
+
 	env.package.loaded = {}
 	for _,field in ipairs{
 		'coroutine',
@@ -336,13 +376,18 @@ local function findchunk(name)
 end
 
 function require(name)
-	if package.loaded[name] == nil then
-		package.loaded[name] = assert(findchunk(name))(name) or true
+	local v = package.loaded[name]
+	if v == nil then
+		v = assert(findchunk(name))(name)
+		if v == nil then v = true end
+		package.loaded[name] = v
 	end
-	return package.loaded[name]
+	return v
 end
 
 -- bypass GLApp :run() and ImGuiApp
+-- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
+-- or Windows-specific, lowercase the filename ..?
 do
 	local GLApp = require 'glapp'
 	function GLApp:run() return self end
@@ -377,6 +422,42 @@ end
 	self.env = env
 
 	self:setPage(gen)
+end
+
+--[[
+run this after a page is loaded
+it will use the browser's current state
+--]]
+function Browser:searchURLRelative(name)
+	assert(self.url)
+	assert(self.proto)
+--print('searchURLRelative self.url', self.url)
+--print('searchURLRelative self.proto', self.proto)
+
+	local errs = ''
+
+	-- TODO a nice server feature would be to pass a file and search-path and have the server do the requests
+	for _,searchpath in ipairs{
+		'?.lua',
+		'?/?.lua',
+	} do
+		local filename = searchpath:gsub('%?', (name:gsub('%.', '/')))
+--print('searchURLRelative filename', filename)
+		
+		-- TODO use a proper URL object and break down the pieces , incl username, password, port, GET args, etc
+		local dir, pagename = self.url:match'(.*)/(.-)'
+		assert(dir)
+--print('searchURLRelative dir', dir)
+--print('searchURLRelative pagename', pagename)
+		local url = dir..'/'..filename
+--print('searchURLRelative url', url)
+		local data, err = self:loadURL(url)
+		if data then return data end
+		if err then
+			errs = errs .. err .. '\n'
+		end
+	end
+	return nil, errs
 end
 
 function Browser:setPageProtected(gen, ...)
@@ -489,7 +570,7 @@ end
 function Browser:updateGUI(...)
 	if ig.igBeginMainMenuBar() then
 		if ig.luatableInputText('', self, 'url', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			self:loadURL()
+			self:setPageURL()
 		end
 		ig.igEndMainMenuBar()
 	end
