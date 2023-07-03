@@ -80,7 +80,7 @@ Browser.title = 'Browser'
 function Browser:initGL(...)
 	-- save this to be reset each time a new page is loaded
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
-	
+
 	Browser.super.initGL(self, ...)
 
 	--[[ use a package.searchers and give it precedence over local requires
@@ -130,13 +130,16 @@ function Browser:loadURL(url)
 	self.proto = proto
 	if not proto then
 		-- try accessing it as a file
+		print('file(url):exists()', file(url):exists(), url)
 		if file(url):exists() then
+			proto = 'file'
 			self.proto = 'file'
 			self.url = 'file://'..url
 			self:loadFile(url)
 			return
 		else
-			self:setErrorPage("url is ill-formatted "..tostring(url))
+			self:setErrorPage("url is ill-formatted / file not found: "..tostring(url))
+			return
 		end
 	end
 	if proto == 'file' then
@@ -164,13 +167,13 @@ function Browser:loadFile(filename)
 		self:setErrorPage("couldn't load file "..tostring(filename))
 		return
 	end
-	
+
 	local data, err = file(filename):read()
 	if not data then
 		self:setErrorPage("couldn't read file "..tostring(filename)..": "..tostring(err))
 		return
 	end
-	
+
 	self:handleData(data)
 end
 
@@ -283,7 +286,7 @@ function Browser:handleData(data)
 	2) package.searchpath / package.path
 	3) package.searchpath / package.cpath
 	4) 'all in one loader'
-	
+
 	TODO replace the local file searchers for ones that search remote+local
 	and then shim all io.open's to - upon remote protocols - check remote first
 		or just use the page protocol as the cwd in general
@@ -356,7 +359,7 @@ end
 ]], 'init sandbox of '..self.url, nil, env)
 		if not gen then
 			-- report compile error
-			self:setErrorPage('failed to load '..tostring(self.url))
+			self:setErrorPage('failed to load '..tostring(self.url)..': '..tostring(err))
 			return
 		else
 			if not self:safecall(gen) then return end
@@ -367,10 +370,12 @@ end
 	-- get our page generation module
 	local gen, err = load(data, self.url, nil, env)
 	if not gen then
-		self:setErrorPage('failed to load '..tostring(self.url))
+		self:setErrorPage('failed to load '..tostring(self.url)..': '..tostring(err))
 		return
 	end
-	
+
+	self.env = env
+
 	self:setPage(gen)
 end
 
@@ -393,7 +398,6 @@ function Browser:setPage(gen, ...)
 	gl.glPopAttrib()
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
 
-	-- TODO this every update
 	if self.page then
 		self.page.width = self.width
 		self.page.height = self.height
@@ -401,8 +405,26 @@ function Browser:setPage(gen, ...)
 
 	-- TODO this on another thread? for blocking requires to load remote scripts
 	self:safecallPage'init'
+
 	-- for glapp interop support:
-	self:safecallPage'initGL'
+	if self.page
+	and self.page.initGL
+	then
+		--[[
+		self:safecallPage'initGL'
+		--]]
+		-- [=[
+		local res, err = load([[
+local page = ...
+page:initGL(require 'gl', 'gl')
+]], self.url, nil, self.env
+		)
+		if not res then
+			self:setErrorPage('error calling initGL: '..tostring(err))
+		end
+		self:safecall(res, self.page)
+		--]=]
+	end
 end
 
 local function captureTraceback(err)
@@ -441,13 +463,19 @@ function Browser:safecallPage(field, ...)
 end
 
 function Browser:update(...)
+	if self.page then
+		self.page.width = self.width
+		self.page.height = self.height
+	end
+
 	-- super calls matrix setup and calls updategui
 	-- so for the matrix to be setup before the first update,
 	-- i have to call it here
 	self.view:setup(self.width / self.height)
 
 	self:safecallPage('update', ...)
-	-- hmmmm OpenGL state issues ...
+
+	-- hmmmm OpenGL state issues vs ImGUI update
 	gl.glUseProgram(0)
 	gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 	return Browser.super.update(self, ...)
