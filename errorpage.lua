@@ -1,7 +1,7 @@
 local gl = require 'gl'
 local ig = require 'imgui'
 
-local function errorPage(browser, err)
+local function errorPage(err)
 	err = tostring(err)
 	return {
 		title = 'error',
