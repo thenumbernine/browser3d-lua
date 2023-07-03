@@ -38,14 +38,14 @@ do
 	local old_ffi_cdef = ffi.cdef
 	local alreadycdefd = {}
 	function ffi.cdef(x)
+		-- this isn't necessary but it does cut down on a lot of the ffi.cdef's
 		-- make sure we're not just repeatedly cdef'ing nothing
 		-- though does it matter if that's the case?
 		-- for debugging ... yeah.  otherwise ... no?
 		x = removeCommentsAndApplyContinuations(x)
 		if x:match'^%s*$' then return end
-		local stack = debug.traceback()
 		if alreadycdefd[x] then return end
-		alreadycdefd[x] = stack
+		alreadycdefd[x] = debug.traceback()
 		old_ffi_cdef(x)
 	end
 
@@ -53,13 +53,14 @@ do
 	local old_ffi_metatype = ffi.metatype
 	local alreadymetatype = {}
 	function ffi.metatype(typename, mt)
-		local key = typename
-		if alreadymetatype[key] then return alreadymetatype[key] end
-		alreadymetatype[key] = old_ffi_metatype(typename, mt)
-		return alreadymetatype[key]
+		local v = alreadymetatype[typename]
+		if not v then
+			v = old_ffi_metatype(typename, mt)
+			alreadymetatype[typename] = v
+		end
+		return v
 	end
 end
--- TODO same needed for ffi.metatype
 --]]
 
 local file = require 'ext.file'	-- TODO rename to path
