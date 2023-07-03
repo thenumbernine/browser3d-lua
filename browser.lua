@@ -73,6 +73,7 @@ local ThreadManager = require 'threadmanager'
 local errorPage = require 'browser.errorpage'
 
 local initcwd = file:cwd()
+file'cache':mkdir()
 
 local Browser = require 'imguiapp.withorbit'()
 
@@ -356,6 +357,36 @@ function Browser:handleData(data)
 	-- also load ffi - with its modified cdef
 	env.package.loaded.ffi = ffi
 
+	-- now shim io ...
+	env.package.loaded.io = shallowcopy(env.package.loaded.io)
+	env.io = env.package.loaded.io
+	
+	-- shim io.open
+	env.io.open = function(...)
+		-- if proto isn't file then 
+		-- ... fail for writing
+		-- ... fail for io.rename 
+		-- ... fail for io.mkdir
+		-- ... fail for io.popen
+		if self.proto == 'file' then return io.open(...) end
+		local name, mode = ...
+		if mode:find'w' then return nil, "can't write to remote urls" end
+
+		local cacheName = self.cache[name] 
+		if not cacheName then
+			cacheName = 'cache/'..name	-- TODO hash url or something? idk...
+			local data, err = self:loadURLRelative(name)
+			if not data then return data, err end
+			file(cacheName):write(data)
+			self.cache[name] = cacheName
+		end
+		if not cacheName then 
+			return nil, "failed to create cache entry for file "..tostring(name)
+		end
+		return io.open(cacheName, select(2, ...))
+	end
+	-- TODO image-luajit still uses per-format library calls that use FILE for local access...
+
 	do
 		local gen, err = load([[
 -- without this, subequent require()'s will have the original _G
@@ -444,21 +475,29 @@ function Browser:searchURLRelative(name)
 	} do
 		local filename = searchpath:gsub('%?', (name:gsub('%.', '/')))
 --print('searchURLRelative filename', filename)
-		
-		-- TODO use a proper URL object and break down the pieces , incl username, password, port, GET args, etc
-		local dir, pagename = self.url:match'(.*)/(.-)'
-		assert(dir)
---print('searchURLRelative dir', dir)
---print('searchURLRelative pagename', pagename)
-		local url = dir..'/'..filename
---print('searchURLRelative url', url)
-		local data, err = self:loadURL(url)
+		local data, err = self:loadURLRelative(filename)
 		if data then return data end
 		if err then
 			errs = errs .. err .. '\n'
 		end
 	end
 	return nil, errs
+end
+
+-- gets url for 'name' relative to url self.url
+function Browser:getURLForRelativeFilename(filename)
+	-- TODO use a proper URL object and break down the pieces , incl username, password, port, GET args, etc
+	local dir, pagename = self.url:match'(.*)/(.-)'
+	assert(dir)
+--print('searchURLRelative dir', dir)
+--print('searchURLRelative pagename', pagename)
+	return dir..'/'..filename
+end
+
+function Browser:loadURLRelative(filename)
+	-- TODO how about absolute-paths 'filename'?
+	-- in that case, rename 'Relative' to 'ForCurrentPageURL' ?
+	return self:loadURL(self:getURLForRelativeFilename(filename))
 end
 
 function Browser:setPageProtected(gen, ...)
@@ -469,6 +508,8 @@ function Browser:setPageProtected(gen, ...)
 end
 
 function Browser:setPage(gen, ...)
+	self.cache = {}
+	
 	self:safecall(self.setPageProtected, self, gen, ...)
 
 	if not self.page then
