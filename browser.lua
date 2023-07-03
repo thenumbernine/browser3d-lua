@@ -371,11 +371,11 @@ end
 		return
 	end
 	
-	self:setPage(gen, self)
+	self:setPage(gen)
 end
 
 function Browser:setPageProtected(gen, ...)
-	self.page = gen(self, ...)
+	self.page = gen(...)
 	if self.page then
 		sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
 	end
