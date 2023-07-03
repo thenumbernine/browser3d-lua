@@ -333,13 +333,18 @@ function require(name)
 	return package.loaded[name]
 end
 
--- bypass GLApp :run() initialization
+-- bypass GLApp :run() and ImGuiApp
 do
 	local GLApp = require 'glapp'
-	GLApp.run = function()
-		return self
-	end
+	function GLApp:run() return self end
 	package.loaded['glapp.glapp'] = package.loaded['glapp']
+
+	local ImGuiApp = require 'imguiapp'
+	function ImGuiApp:initGL() end
+	function ImGuiApp:exit() end
+	function ImGuiApp:event() end
+	function ImGuiApp:update() end
+	package.loaded['imguiapp.imguiapp'] = package.loaded['imguiapp']
 end
 
 ]], 'init sandbox of '..self.url, nil, env)
@@ -356,10 +361,10 @@ end
 	-- get our page generation module
 	local gen, err = load(data, self.url, nil, env)
 	if not gen then
-		-- report compile error
 		self:setErrorPage('failed to load '..tostring(self.url))
 		return
 	end
+	
 	self:setPage(gen, self)
 end
 
@@ -372,7 +377,12 @@ end
 
 function Browser:setPage(gen, ...)
 	self:safecall(self.setPageProtected, self, gen, ...)
-	
+
+	if not self.page then
+		self:setErrorPage('no page')
+		return
+	end
+
 	-- init GL state
 	gl.glPopAttrib()
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
@@ -385,7 +395,7 @@ function Browser:setPage(gen, ...)
 
 	-- TODO this on another thread? for blocking requires to load remote scripts
 	self:safecallPage'init'
-	-- legacy ...
+	-- for glapp interop support:
 	self:safecallPage'initGL'
 end
 
