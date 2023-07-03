@@ -360,32 +360,41 @@ function Browser:handleData(data)
 	-- now shim io ...
 	env.package.loaded.io = shallowcopy(env.package.loaded.io)
 	env.io = env.package.loaded.io
-	
-	-- shim io.open
-	env.io.open = function(...)
-		-- if proto isn't file then 
-		-- ... fail for writing
-		-- ... fail for io.rename 
-		-- ... fail for io.mkdir
-		-- ... fail for io.popen
-		if self.proto == 'file' then return io.open(...) end
-		local name, mode = ...
-		if mode:find'w' then return nil, "can't write to remote urls" end
 
-		local cacheName = self.cache[name] 
-		if not cacheName then
-			cacheName = 'cache/'..name	-- TODO hash url or something? idk...
-			local data, err = self:loadURLRelative(name)
-			if not data then return data, err end
-			file(cacheName):write(data)
-			self.cache[name] = cacheName
+	local function addCacheShim(origfunc)
+		return function(...)
+			-- if proto isn't file then 
+			-- ... fail for writing
+			-- ... fail for io.rename 
+			-- ... fail for io.mkdir
+			-- ... fail for io.popen
+			if self.proto == 'file' then return origfunc(...) end
+			local name, mode = ...
+			if mode:find'w' then return nil, "can't write to remote urls" end
+
+			local cacheName = self.cache[name] 
+			if not cacheName then
+				cacheName = 'cache/'..name	-- TODO hash url or something? idk...
+				local data, err = self:loadURLRelative(name)
+				if not data then return data, err end
+				file(cacheName):write(data)
+				self.cache[name] = cacheName
+			end
+			if not cacheName then 
+				return nil, "failed to create cache entry for file "..tostring(name)
+			end
+			return origfunc(cacheName, select(2, ...))
 		end
-		if not cacheName then 
-			return nil, "failed to create cache entry for file "..tostring(name)
-		end
-		return io.open(cacheName, select(2, ...))
 	end
-	-- TODO image-luajit still uses per-format library calls that use FILE for local access...
+
+	-- shim io.open
+	env.io.open = addCacheShim(io.open)
+	--[[ TODO image-luajit still uses per-format library calls that use FILE for local access...
+	env.ffi.C.fopen = addCacheShim(ffi.C.fopen)
+	env.ffi.C.TIFFOpen = addCacheShim(ffi.C.TIFFOpen)
+	env.ffi.C.ffopen = addCacheShim(ffi.C.ffopen)			-- fits
+	env.ffi.C.DGifOpenFileName = addCacheShim(ffi.C.DGifOpenFileName)
+	--]]
 
 	do
 		local gen, err = load([[
