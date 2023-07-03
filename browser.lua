@@ -153,6 +153,7 @@ function Browser:loadFile(filename)
 	-- save initial cwd
 	-- then cd back to it before setting relative file path
 	-- or should I sandbox all io.open() calls to be relative to the page path?
+	-- I'll be doing that for remote stuff anyways so TODO
 	file(initcwd):cd()
 	local dir, name = file(filename):getdir()
 	file(dir):cd()
@@ -188,6 +189,7 @@ end
 
 function Browser:handleData(data)
 	if type(data) ~= 'string' then
+		-- error and not errorPage because this is an internal browser code convention
 		error("handleData got bad data: "..tolua(data))
 	end
 	-- sandbox env
@@ -281,6 +283,10 @@ function Browser:handleData(data)
 	2) package.searchpath / package.path
 	3) package.searchpath / package.cpath
 	4) 'all in one loader'
+	
+	TODO replace the local file searchers for ones that search remote+local
+	and then shim all io.open's to - upon remote protocols - check remote first
+		or just use the page protocol as the cwd in general
 	--]]
 	env.package.searchers = shallowcopy(_G.package.searchers)
 
