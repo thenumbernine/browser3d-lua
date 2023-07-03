@@ -64,6 +64,7 @@ end
 
 local file = require 'ext.file'	-- TODO rename to path
 local table = require 'ext.table'
+local tolua = require 'ext.tolua'
 local sdl = require 'ffi.sdl'
 local ig = require 'imgui'
 local gl = require 'gl'
@@ -148,20 +149,28 @@ function Browser:loadURL(url)
 end
 
 function Browser:loadFile(filename)
+	-- save relative paths ...
+	-- save initial cwd
+	-- then cd back to it before setting relative file path
+	-- or should I sandbox all io.open() calls to be relative to the page path?
+	file(initcwd):cd()
+	local dir, name = file(filename):getdir()
+	file(dir):cd()
+	filename = name
+
 	if not file(filename):exists() then
 		-- ... have the browser show a 'file missing' page
 		self:setErrorPage("couldn't load file "..tostring(filename))
-	else
-		-- save relative paths ...
-		-- save initial cwd
-		-- then cd back to it before setting relative file path
-		file(initcwd):cd()
-		local dir = file(filename):getdir()
-		print('dir', dir)
-		--file(dir):cd()
-		
-		self:handleData(file(filename):read())
+		return
 	end
+	
+	local data, err = file(filename):read()
+	if not data then
+		self:setErrorPage("couldn't read file "..tostring(filename)..": "..tostring(err))
+		return
+	end
+	
+	self:handleData(data)
 end
 
 function Browser:loadHTTP(url)
@@ -178,6 +187,9 @@ local function shallowcopy(t)
 end
 
 function Browser:handleData(data)
+	if type(data) ~= 'string' then
+		error("handleData got bad data: "..tolua(data))
+	end
 	-- sandbox env
 	--[==[ simple sandbox:
 	local env = setmetatable({browser=self}, {__index=_G})
@@ -320,6 +332,16 @@ function require(name)
 	end
 	return package.loaded[name]
 end
+
+-- bypass GLApp :run() initialization
+do
+	local GLApp = require 'glapp'
+	GLApp.run = function()
+		return self
+	end
+	package.loaded['glapp.glapp'] = package.loaded['glapp']
+end
+
 ]], 'init sandbox of '..self.url, nil, env)
 		if not gen then
 			-- report compile error
@@ -355,8 +377,16 @@ function Browser:setPage(gen, ...)
 	gl.glPopAttrib()
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
 
+	-- TODO this every update
+	if self.page then
+		self.page.width = self.width
+		self.page.height = self.height
+	end
+
 	-- TODO this on another thread? for blocking requires to load remote scripts
 	self:safecallPage'init'
+	-- legacy ...
+	self:safecallPage'initGL'
 end
 
 local function captureTraceback(err)
