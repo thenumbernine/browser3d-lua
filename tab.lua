@@ -1,3 +1,6 @@
+-- require this first so it modifies ffi first
+local ffi = require 'browser.ffi'
+
 local file = require 'ext.file'	-- TODO rename to path
 local class = require 'ext.class'
 local table = require 'ext.table'
@@ -12,7 +15,25 @@ function Tab:init(args)
 	self.browser = assert(args.browser)
 	self.url = args.url or self.url or 'file://pages/test.lua'
 	assert(type(self.url) == 'string')
-	self:setPageURL()
+	
+	-- start off a thread for our modified environment
+	self.thread = coroutine.create(function()
+		self:setPageURL()
+		coroutine.yield()
+
+		repeat
+			local args = table.pack(coroutine.yield())
+			if self.cmd == 'update' then
+				self:safecallPage('update', args:unpack())
+			elseif self.cmd == 'updateGUI' then
+				self:safecallPage('updateGUI', args:unpack())
+			elseif self.cmd == 'event' then
+				self:safecallPage('event', args:unpack())
+			end
+			self.cmd = nil
+		until self.done
+	end)
+	coroutine.resume(self.thread)
 end
 
 function Tab:requireRelativeToLastPage(name)
@@ -124,7 +145,8 @@ function Tab:handleData(data)
 	end
 	
 	-- sandbox env
-	-- [==[ simple sandbox:
+	
+	--[==[ simple sandbox:
 	local env = setmetatable({browser=self}, {__index=_G})
 	--[[ env.require to require remote ...
 	env.require = function(name)
@@ -149,8 +171,7 @@ function Tab:handleData(data)
 	--]]
 	--]==]
 
-
-	--[==[ trying to sandbox _G from require()
+	-- [==[ sandboxing _G from require()
 	-- this was my attempt to make a quick fix to using all previous glapp subclasses as pages ...
 	-- the problem occurs because browser here already require'd glapp, which means glapp is in package.loaded, and with its already-defined _G, which has no 'browser'
 	-- I was trying to create a parallel require()/package.loaded , one with _G having 'browser', and using that as a detect, but.... it's getting to be too much work
@@ -198,7 +219,7 @@ function Tab:handleData(data)
 	env.arg = {}
 	-- set browser as a global or package?
 	env.browser = self.browser
-	env.tab = self.tab
+	env.browserTab = self.browserTab
 --print('env', env)
 --print('env.browser', env.browser)
 	-- make sure our sandbox _G points back to itself so the page can't modify the browser env
@@ -296,10 +317,10 @@ function Tab:handleData(data)
 	env.ffi.C.ffopen = addCacheShim(ffi.C.ffopen)			-- fits
 	env.ffi.C.DGifOpenFileName = addCacheShim(ffi.C.DGifOpenFileName)
 	--]]
-
 	do
 		local gen, err = load([[
 -- without this, subequent require()'s will have the original _G
+-- TODO need a new thread for all this
 setfenv(0, _G)
 
 -- now I guess I need my own require() function
@@ -508,15 +529,15 @@ function Tab:update(...)
 	-- TODO this?  this can mess with the page's own matrix setup...
 	self.browser.view:setup(self.browser.width / self.browser.height)
 
-	self:safecallPage('update', ...)
+--	self:safecallPage('update', ...)
 end
 
 function Tab:event(...)
-	self:safecallPage('event', ...)
+--	self:safecallPage('event', ...)
 end
 
 function Tab:updateGUI(...)
-	self:safecallPage('updateGUI', ...)
+--	self:safecallPage('updateGUI', ...)
 end
 
 return Tab
