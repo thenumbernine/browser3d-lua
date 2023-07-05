@@ -48,7 +48,7 @@ function Browser:update(...)
 	for _,tab in ipairs(self.tabs) do
 		--tab:update(...)
 		tab.cmd = 'update'
-		coroutine.resume(tab.thread)
+		coroutine.resume(tab.thread, ...)
 	end
 
 	-- hmmmm OpenGL state issues vs ImGUI update
@@ -61,7 +61,7 @@ function Browser:event(...)
 	for _,tab in ipairs(self.tabs) do
 		--tab:event(...)
 		tab.cmd = 'event'
-		coroutine.resume(tab.thread)
+		coroutine.resume(tab.thread, ...)
 	end
 	return Browser.super.event(self, ...)
 end
@@ -78,7 +78,7 @@ function Browser:updateGUI(...)
 	-- TODO show tabs
 	--self.currentTab:updateGUI(...)
 	self.currentTab.cmd = 'updateGUI'
-	coroutine.resume(self.currentTab.thread)
+	coroutine.resume(self.currentTab.thread, ...)
 	
 	return Browser.super.updateGUI(self, ...)
 end

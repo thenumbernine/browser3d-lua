@@ -320,7 +320,6 @@ function Tab:handleData(data)
 	do
 		local gen, err = load([[
 -- without this, subequent require()'s will have the original _G
--- TODO need a new thread for all this
 setfenv(0, _G)
 
 -- now I guess I need my own require() function
