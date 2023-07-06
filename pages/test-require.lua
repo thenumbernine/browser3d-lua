@@ -15,7 +15,7 @@ end
 function Page:updateGUI()
 	ig.fullscreen(function()
 		ig.igText(tostring(f()))
-	end)
+	end, 18)
 end
 
 return Page

@@ -11,7 +11,7 @@ local function errorPage(err)
 		updateGUI = function(self)
 			ig.fullscreen(function()
 				ig.igText(err)
-			end)
+			end, 18)
 		end,
 	}
 end

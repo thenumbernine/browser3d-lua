@@ -5,7 +5,6 @@ local file = require 'ext.file'	-- TODO rename to path
 local class = require 'ext.class'
 local table = require 'ext.table'
 local tolua = require 'ext.tolua'
-local sdl = require 'ffi.sdl'
 local gl = require 'gl'
 local errorPage = require 'browser.errorpage'
 
@@ -435,10 +434,6 @@ end
 
 function Tab:setPageProtected(gen, ...)
 	self.page = gen(...)
-	-- TODO handle change pages / tabs
-	if self.page then
-		sdl.SDL_SetWindowTitle(self.window, self.page.title or '')
-	end
 end
 
 function Tab:setPage(gen, ...)

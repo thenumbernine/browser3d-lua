@@ -5,6 +5,7 @@ local class = require 'ext.class'
 local file = require 'ext.file'
 local table = require 'ext.table'
 local gl = require 'gl'
+local sdl = require 'ffi.sdl'
 local ig = require 'imgui'
 local ThreadManager = require 'threadmanager'
 local Tab = require 'browser.tab'
@@ -49,6 +50,13 @@ function Browser:update(...)
 		tab:resumecall('update', ...)
 	end
 
+	-- refresh title
+	self.title = tostring(self.currentTab.page and self.currentTab.page.title or nil)
+	if self.lastTitle ~= self.title then
+		sdl.SDL_SetWindowTitle(self.window, self.title)
+		self.lastTitle = self.title
+	end
+
 	-- hmmmm OpenGL state issues vs ImGUI update
 	gl.glUseProgram(0)
 	gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
@@ -70,8 +78,37 @@ function Browser:updateGUI(...)
 		ig.igEndMainMenuBar()
 	end
 	
-	-- TODO show tabs
-	
+	-- show tabs
+	--[[
+	ig.igSetNextWindowPos(ig.ImVec2(0, 18), 0, ig.ImVec2())
+	local size = ig.ImVec2(ig.igGetIO().DisplaySize)
+	size.y = 18
+	ig.igSetNextWindowSize(size, 0)
+
+	ig.igPushStyleVar_Float(ig.ImGuiStyleVar_WindowRounding, 0)
+	ig.igBegin('tab window', nil, bit.bor(
+		ig.ImGuiWindowFlags_NoMove,
+		ig.ImGuiWindowFlags_NoResize,
+		ig.ImGuiWindowFlags_NoCollapse,
+		ig.ImGuiWindowFlags_NoDecoration
+	))
+
+	if ig.igBeginTabBar('tabs', 0) then
+		ig.igTabItemButton('+', bit.bor(
+			ig.ImGuiTabItemFlags_Trailing,
+			ig.ImGuiTabItemFlags_NoTooltip
+		))
+		
+		if ig.igBeginTabItem('tab', nil, 0) then
+			ig.igEndTabItem()
+		end
+
+		ig.igEndTabBar()
+	end
+	ig.igEnd()
+	ig.igPopStyleVar(1)
+	--]]
+
 	self.currentTab:resumecall('updateGUI', ...)
 	
 	return Browser.super.updateGUI(self, ...)
