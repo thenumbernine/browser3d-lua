@@ -479,8 +479,8 @@ function Tab:setPage(gen, ...)
 	end
 
 	-- init GL state
---	gl.glPopAttrib()
---	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
+	gl.glPopAttrib()
+	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
 
 	if self.page then
 		self.page.width = self.width
@@ -557,7 +557,9 @@ function Tab:update(...)
 	-- i have to call it here
 	-- TODO this?  this can mess with the page's own matrix setup...
 	-- or how about, only do this if no initGL is present?
-	self.browser.view:setup(self.browser.width / self.browser.height)
+	if self.page and not self.page.initGL then
+		self.browser.view:setup(self.browser.width / self.browser.height)
+	end
 
 	self:safecallPage('update', ...)
 end
