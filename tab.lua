@@ -285,22 +285,25 @@ function Tab:handleData(data)
 
 	local function addCacheShim(origfunc)
 		return function(...)
+			local name = ...
+			
 			-- if proto isn't file then 
 			-- ... fail for writing
 			-- ... fail for io.rename 
 			-- ... fail for io.mkdir
 			-- ... fail for io.popen
+			--[[ if we fall through to the original file always then we can't get paths relative to the file:// url...
 			if self.proto == 'file' then
 				-- TODO relative path? page working dir? emulate behavior of remote?
 				return origfunc(...)
 			end
+			--]]
 			
 			--[[ this is io.open specific
 			-- how to put function-specific stuff in here ...
 			local name, mode = ...
 			if mode:find'w' then return nil, "can't write to remote urls" end
 			--]]
-			local name = ...
 
 			local cacheName = self.cache[name] 
 			if not cacheName then
@@ -316,8 +319,6 @@ function Tab:handleData(data)
 			return origfunc(cacheName, select(2, ...))
 		end
 	end
-
-print('default io.lines', io.lines)
 
 	-- shim all io.open's to - upon remote protocols - check remote first
 	-- or just use the page protocol as the cwd in general
