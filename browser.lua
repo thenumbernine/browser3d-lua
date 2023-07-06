@@ -60,6 +60,9 @@ function Browser:update(...)
 	-- hmmmm OpenGL state issues vs ImGUI update
 	gl.glUseProgram(0)
 	gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+
+	-- hmm, this is going to mess with the modelview/projection matrix state ..
+	-- app pages aren't going to like that ...
 	return Browser.super.update(self, ...)
 end
 
