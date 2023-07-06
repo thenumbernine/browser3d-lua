@@ -46,9 +46,7 @@ end
 
 function Browser:update(...)
 	for _,tab in ipairs(self.tabs) do
-		--tab:update(...)
-		tab.cmd = 'update'
-		coroutine.resume(tab.thread, ...)
+		tab:resumecall('update', ...)
 	end
 
 	-- hmmmm OpenGL state issues vs ImGUI update
@@ -59,9 +57,7 @@ end
 
 function Browser:event(...)
 	for _,tab in ipairs(self.tabs) do
-		--tab:event(...)
-		tab.cmd = 'event'
-		coroutine.resume(tab.thread, ...)
+		tab:resumecall('event', ...)
 	end
 	return Browser.super.event(self, ...)
 end
@@ -69,16 +65,14 @@ end
 function Browser:updateGUI(...)
 	if ig.igBeginMainMenuBar() then
 		if ig.luatableInputText('', self.currentTab, 'url', ig.ImGuiInputTextFlags_EnterReturnsTrue) then
-			print'TODO'
-			--self.currentTab:setPageURL()
+			self.currentTab:resumecall'setPageURL'
 		end
 		ig.igEndMainMenuBar()
 	end
 	
 	-- TODO show tabs
-	--self.currentTab:updateGUI(...)
-	self.currentTab.cmd = 'updateGUI'
-	coroutine.resume(self.currentTab.thread, ...)
+	
+	self.currentTab:resumecall('updateGUI', ...)
 	
 	return Browser.super.updateGUI(self, ...)
 end

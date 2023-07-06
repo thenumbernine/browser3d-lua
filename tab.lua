@@ -11,6 +11,10 @@ local errorPage = require 'browser.errorpage'
 
 local Tab = class()
 
+local function call(f, ...)
+	return f(...)
+end
+
 function Tab:init(args)
 	self.browser = assert(args.browser)
 	self.url = args.url or self.url or 'file://pages/test.lua'
@@ -22,19 +26,18 @@ function Tab:init(args)
 		coroutine.yield()
 
 		repeat
-			local args = table.pack(coroutine.yield())
-			if self.cmd == 'update' then
-				self:safecallPage('update', args:unpack())
-			elseif self.cmd == 'updateGUI' then
-				self:safecallPage('updateGUI', args:unpack())
-			elseif self.cmd == 'event' then
-				self:safecallPage('event', args:unpack())
-			end
-			self.cmd = nil
+			call(coroutine.yield())
 		until self.done
 	end)
 	coroutine.resume(self.thread)
 end
+
+-- call this from another thread 
+function Tab:resumecall(field, ...)
+	coroutine.resume(self.thread, self[field], self, ...)
+end
+
+-- everything else in Tab should only be called from the tab's own thread
 
 function Tab:requireRelativeToLastPage(name)
 	local proto, rest = name:match'^([^:]*)://(.*)'
@@ -526,17 +529,18 @@ function Tab:update(...)
 	-- so for the matrix to be setup before the first update,
 	-- i have to call it here
 	-- TODO this?  this can mess with the page's own matrix setup...
+	-- or how about, only do this if no initGL is present?
 	self.browser.view:setup(self.browser.width / self.browser.height)
 
---	self:safecallPage('update', ...)
+	self:safecallPage('update', ...)
 end
 
 function Tab:event(...)
---	self:safecallPage('event', ...)
+	self:safecallPage('event', ...)
 end
 
 function Tab:updateGUI(...)
---	self:safecallPage('updateGUI', ...)
+	self:safecallPage('updateGUI', ...)
 end
 
 return Tab
