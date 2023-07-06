@@ -20,15 +20,8 @@ function Tab:init(args)
 	assert(type(self.url) == 'string')
 	
 	-- start off a thread for our modified environment
-	self.thread = coroutine.create(function()
-		self:setPageURL()
-		coroutine.yield()
-
-		repeat
-			call(coroutine.yield())
-		until self.done
-	end)
-	coroutine.resume(self.thread)
+	self.thread = coroutine.create(self.threadLoop)
+	coroutine.resume(self.thread, self)
 end
 
 -- call this from another thread 
@@ -37,6 +30,13 @@ function Tab:resumecall(field, ...)
 end
 
 -- everything else in Tab should only be called from the tab's own thread
+
+function Tab:threadLoop()
+	local result = self:setPageURL()
+	while not self.done do
+		result = call(coroutine.yield(result))
+	end
+end
 
 function Tab:requireRelativeToLastPage(name)
 	local proto, rest = name:match'^([^:]*)://(.*)'
@@ -240,9 +240,7 @@ function Tab:handleData(data)
 	3) package.searchpath / package.cpath
 	4) 'all in one loader'
 
-	TODO replace the local file searchers for ones that search remote+local
-	and then shim all io.open's to - upon remote protocols - check remote first
-		or just use the page protocol as the cwd in general
+	replace the local file searchers for ones that search remote+local
 	--]]
 	env.package.searchers = shallowcopy(_G.package.searchers)
 
@@ -292,9 +290,17 @@ function Tab:handleData(data)
 			-- ... fail for io.rename 
 			-- ... fail for io.mkdir
 			-- ... fail for io.popen
-			if self.proto == 'file' then return origfunc(...) end
+			if self.proto == 'file' then
+				-- TODO relative path? page working dir? emulate behavior of remote?
+				return origfunc(...)
+			end
+			
+			--[[ this is io.open specific
+			-- how to put function-specific stuff in here ...
 			local name, mode = ...
 			if mode:find'w' then return nil, "can't write to remote urls" end
+			--]]
+			local name = ...
 
 			local cacheName = self.cache[name] 
 			if not cacheName then
@@ -311,16 +317,25 @@ function Tab:handleData(data)
 		end
 	end
 
-	-- shim io.open
+print('default io.lines', io.lines)
+
+	-- shim all io.open's to - upon remote protocols - check remote first
+	-- or just use the page protocol as the cwd in general
 	env.io.open = addCacheShim(io.open)
-	--[[ TODO image-luajit still uses per-format library calls that use FILE for local access...
+	env.io.lines = addCacheShim(io.lines)
+
+
+	--[=[ TODO image-luajit still uses per-format library calls that use FILE for local access...
 	env.ffi.C.fopen = addCacheShim(ffi.C.fopen)
 	env.ffi.C.TIFFOpen = addCacheShim(ffi.C.TIFFOpen)
 	env.ffi.C.ffopen = addCacheShim(ffi.C.ffopen)			-- fits
 	env.ffi.C.DGifOpenFileName = addCacheShim(ffi.C.DGifOpenFileName)
-	--]]
+	--]=]
+	
 	do
 		local gen, err = load([[
+local addCacheShim = ...
+
 -- without this, subequent require()'s will have the original _G
 setfenv(0, _G)
 
@@ -349,21 +364,35 @@ function require(name)
 	return v
 end
 
+--[=[ TODO work around lfs?
+local lfs = require 'ext.detect_lfs'
+--]=]
+-- [=[ or just work around other ext.io / os stuff that uses lfs?
+local extos = require 'ext.os'
+extos.mkdir = addCacheShim(extos.mkdir)
+extos.rmdir = addCacheShim(extos.rmdir)
+extos.isdir = addCacheShim(extos.isdir)
+extos.listdir = addCacheShim(extos.listdir)
+extos.rlistdir = addCacheShim(extos.rlistdir)
+extos.fileexists = addCacheShim(extos.fileexists)
+--]=]
+
+local stdio = require 'ffi.c.stdio'
+stdio.fopen = addCacheShim(stdio.fopen)
+
 -- bypass GLApp :run() and ImGuiApp
 -- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
 -- or Windows-specific, lowercase the filename ..?
-do
-	local GLApp = require 'glapp'
-	function GLApp:run() return self end
-	package.loaded['glapp.glapp'] = package.loaded['glapp']
+local GLApp = require 'glapp'
+function GLApp:run() return self end
+package.loaded['glapp.glapp'] = package.loaded['glapp']
 
-	local ImGuiApp = require 'imguiapp'
-	function ImGuiApp:initGL() end
-	function ImGuiApp:exit() end
-	function ImGuiApp:event() end
-	function ImGuiApp:update() end
-	package.loaded['imguiapp.imguiapp'] = package.loaded['imguiapp']
-end
+local ImGuiApp = require 'imguiapp'
+function ImGuiApp:initGL() end
+function ImGuiApp:exit() end
+function ImGuiApp:event() end
+function ImGuiApp:update() end
+package.loaded['imguiapp.imguiapp'] = package.loaded['imguiapp']
 
 ]], 'init sandbox of '..self.url, nil, env)
 		if not gen then
@@ -371,7 +400,9 @@ end
 			self:setErrorPage('failed to load '..tostring(self.url)..': '..tostring(err))
 			return
 		else
-			if not self:safecall(gen) then return end
+			if not self:safecall(gen, addCacheShim) then 
+				return 
+			end
 		end
 	end
 	--]==]
