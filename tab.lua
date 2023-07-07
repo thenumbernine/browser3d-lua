@@ -186,7 +186,9 @@ function Tab:handleData(data)
 	--]===]
 	-- [===[ ... but this works?
 	local function shallowcopy(t)
-		return table(t):setmetatable(nil)
+		local r = {}
+		for k,v in pairs(t) do r[k] = v end
+		return r
 	end
 
 	local env = {}
@@ -266,7 +268,7 @@ function Tab:handleData(data)
 		'table',
 		'io',
 	} do
-		local v = package.loaded[field]
+		local v = _G.package.loaded[field]
 		env[field] = v
 		env.package.loaded[field] = v
 	end
