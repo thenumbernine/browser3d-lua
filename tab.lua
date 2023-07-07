@@ -6,6 +6,7 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local tolua = require 'ext.tolua'
 local gl = require 'gl'
+local sandbox = require 'browser.sandbox'
 local errorPage = require 'browser.errorpage'
 
 local Tab = class()
@@ -136,10 +137,6 @@ function Tab:setPageHTTP(url)
 	end
 end
 
-local function shallowcopy(t)
-	return table(t):setmetatable(nil)
-end
-
 function Tab:handleData(data)
 	if type(data) ~= 'string' then
 		-- error and not errorPage because this is an internal browser code convention
@@ -178,6 +175,19 @@ function Tab:handleData(data)
 	-- the problem occurs because browser here already require'd glapp, which means glapp is in package.loaded, and with its already-defined _G, which has no 'browser'
 	-- I was trying to create a parallel require()/package.loaded , one with _G having 'browser', and using that as a detect, but.... it's getting to be too much work
 	-- ... maybe I can use another kind of detect ...
+
+	--[===[ why doesn't this work
+	local env
+	xpcall(function()
+		env = sandbox(_G)
+	end, function(err)
+		print(tostring(err)..'\n'..debug.traceback())
+	end)
+	--]===]
+	-- [===[ ... but this works?
+	local function shallowcopy(t)
+		return table(t):setmetatable(nil)
+	end
 
 	local env = {}
 	-- copy over original globals (not requires)
@@ -219,11 +229,7 @@ function Tab:handleData(data)
 	end
 	-- what kind of args do we want?
 	env.arg = {}
-	-- set browser as a global or package?
-	env.browser = self.browser
-	env.browserTab = self.browserTab
---print('env', env)
---print('env.browser', env.browser)
+
 	-- make sure our sandbox _G points back to itself so the page can't modify the browser env
 	env._G = env
 
@@ -244,6 +250,56 @@ function Tab:handleData(data)
 	--]]
 	env.package.searchers = shallowcopy(_G.package.searchers)
 
+	-- reset package.loaded
+	env.package.loaded = {}
+
+	-- add defaults
+	for _,field in ipairs{
+		'coroutine',
+		'jit',
+		'bit',
+		'os',
+		'debug',
+		'string',
+		'math',
+		'jit.opt',
+		'table',
+		'io',
+	} do
+		local v = package.loaded[field]
+		env[field] = v
+		env.package.loaded[field] = v
+	end
+	env.package.loaded._G = env
+	env.package.loaded.package = env.package
+
+	-- now I guess I need my own require() function
+	-- and maybe get rid of package searchers and loaders? maybe? not sure?
+	local function findchunk(env, name)
+		local errors = ("module '%s' not found"):format(name)
+		for i,searcher in ipairs(env.package.searchers) do
+			local chunk = searcher(name)
+			if type(chunk) == 'function' then
+				return chunk
+			elseif type(chunk) == 'string' then
+				errors = errors .. chunk
+			end
+		end
+		return nil, errors
+	end
+
+	-- needs env in closure
+	function env.require(name)
+		local v = env.package.loaded[name]
+		if v == nil then
+			v = assert(findchunk(env, name))(name)
+			if v == nil then v = true end
+			env.package.loaded[name] = v
+		end
+		return v
+	end
+	--]===]
+
 	-- [[ inserting the searcher first means possibility of every resource being delayed in its loading for remote urls
 	table.insert(env.package.searchers, 1, function(name)
 		-- very first, try relative URL to our page
@@ -263,31 +319,15 @@ function Tab:handleData(data)
 	end)
 	--]]
 
-	env.package.loaded = {}
-	for _,field in ipairs{
-		'coroutine',
-		'jit',
-		'bit',
-		'os',
-		'debug',
-		'string',
-		'math',
-		'jit.opt',
-		'table',
-		'io',
-	} do
-		local v = package.loaded[field]
-		env[field] = v
-		env.package.loaded[field] = v
-	end
-	env.package.loaded._G = env
-	env.package.loaded.package = env.package
-	-- also load ffi - with its modified cdef
-	env.package.loaded.ffi = ffi
-
-	-- now shim io ...
-	env.package.loaded.io = shallowcopy(env.package.loaded.io)
-	env.io = env.package.loaded.io
+	-- set browser as a global or package?
+	env.browser = self.browser
+	env.browserTab = self.browserTab
+--print('env', env)
+--print('env.browser', env.browser)
+	
+	-- without this, subequent require()'s will have the original _G
+	-- this has to be run on the tab's thread
+	setfenv(0, env)
 
 	local function addCacheShim(origfunc)
 		return function(...)
@@ -338,12 +378,16 @@ function Tab:handleData(data)
 			return origfunc(cacheName, select(2, ...))
 		end
 	end
+	
+	-- also load ffi - with its modified cdef
+	env.package.loaded.ffi = ffi
 
 	-- shim all io.open's to - upon remote protocols - check remote first
 	-- or just use the page protocol as the cwd in general
+	env.package.loaded.io = shallowcopy(env.package.loaded.io)
+	env.io = env.package.loaded.io
 	env.io.open = addCacheShim(io.open)
 	env.io.lines = addCacheShim(io.lines)
-
 
 	--[=[ TODO image-luajit still uses per-format library calls that use FILE for local access...
 	env.ffi.C.fopen = addCacheShim(ffi.C.fopen)
@@ -352,35 +396,7 @@ function Tab:handleData(data)
 	env.ffi.C.DGifOpenFileName = addCacheShim(ffi.C.DGifOpenFileName)
 	--]=]
 
-	-- without this, subequent require()'s will have the original _G
-	-- this has to be run on the tab's thread
-	setfenv(0, env)
-
-	-- now I guess I need my own require() function
-	-- and maybe get rid of package searchers and loaders? maybe? not sure?
-	local function findchunk(name)
-		local errors = ("module '%s' not found"):format(name)
-		for i,searcher in ipairs(env.package.searchers) do
-			local chunk = searcher(name)
-			if type(chunk) == 'function' then
-				return chunk
-			elseif type(chunk) == 'string' then
-				errors = errors .. chunk
-			end
-		end
-		return nil, errors
-	end
-
-	function env.require(name)
-		local v = env.package.loaded[name]
-		if v == nil then
-			v = assert(findchunk(name))(name)
-			if v == nil then v = true end
-			env.package.loaded[name] = v
-		end
-		return v
-	end
-
+	-- sandbox filesystem via cache file shim
 	do
 		--[=[ TODO work around lfs?
 		local lfs = env.require 'ext.detect_lfs'
