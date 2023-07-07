@@ -308,6 +308,7 @@ function Tab:handleData(data)
 			local cacheName = self.cache[name] 
 			if not cacheName then
 				cacheName = 'cache/'..name	-- TODO hash url or something? idk...
+print('mapping file', name,'to', cacheName)
 				local data, err = self:loadURLRelative(name)
 				if not data then return data, err end
 				file(cacheName):write(data)
@@ -332,79 +333,66 @@ function Tab:handleData(data)
 	env.ffi.C.ffopen = addCacheShim(ffi.C.ffopen)			-- fits
 	env.ffi.C.DGifOpenFileName = addCacheShim(ffi.C.DGifOpenFileName)
 	--]=]
-	
-	do
-		local gen, err = load([[
-local addCacheShim = ...
 
--- without this, subequent require()'s will have the original _G
-setfenv(0, _G)
+	-- without this, subequent require()'s will have the original _G
+	-- this has to be run on the tab's thread
+	setfenv(0, env)
 
--- now I guess I need my own require() function
--- and maybe get rid of package searchers and loaders? maybe? not sure?
-local function findchunk(name)
-	local errors = ("module '%s' not found"):format(name)
-	for i,searcher in ipairs(package.searchers) do
-		local chunk = searcher(name)
-		if type(chunk) == 'function' then
-			return chunk
-		elseif type(chunk) == 'string' then
-			errors = errors .. chunk
-		end
-	end
-	return nil, errors
-end
-
-function require(name)
-	local v = package.loaded[name]
-	if v == nil then
-		v = assert(findchunk(name))(name)
-		if v == nil then v = true end
-		package.loaded[name] = v
-	end
-	return v
-end
-
---[=[ TODO work around lfs?
-local lfs = require 'ext.detect_lfs'
---]=]
--- [=[ or just work around other ext.io / os stuff that uses lfs?
-local extos = require 'ext.os'
-extos.mkdir = addCacheShim(extos.mkdir)
-extos.rmdir = addCacheShim(extos.rmdir)
-extos.isdir = addCacheShim(extos.isdir)
-extos.listdir = addCacheShim(extos.listdir)
-extos.rlistdir = addCacheShim(extos.rlistdir)
-extos.fileexists = addCacheShim(extos.fileexists)
---]=]
-
-local stdio = require 'ffi.c.stdio'
-stdio.fopen = addCacheShim(stdio.fopen)
-
--- bypass GLApp :run() and ImGuiApp
--- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
--- or Windows-specific, lowercase the filename ..?
-local GLApp = require 'glapp'
-function GLApp:run() return self end
-package.loaded['glapp.glapp'] = package.loaded['glapp']
-
-local ImGuiApp = require 'imguiapp'
-function ImGuiApp:initGL() end
-function ImGuiApp:exit() end
-function ImGuiApp:event() end
-function ImGuiApp:update() end
-package.loaded['imguiapp.imguiapp'] = package.loaded['imguiapp']
-
-]], 'init sandbox of '..self.url, nil, env)
-		if not gen then
-			-- report compile error
-			self:setErrorPage('failed to load '..tostring(self.url)..': '..tostring(err))
-			return
-		else
-			if not self:safecall(gen, addCacheShim) then 
-				return 
+	-- now I guess I need my own require() function
+	-- and maybe get rid of package searchers and loaders? maybe? not sure?
+	local function findchunk(name)
+		local errors = ("module '%s' not found"):format(name)
+		for i,searcher in ipairs(package.searchers) do
+			local chunk = searcher(name)
+			if type(chunk) == 'function' then
+				return chunk
+			elseif type(chunk) == 'string' then
+				errors = errors .. chunk
 			end
 		end
+		return nil, errors
+	end
+
+	function env.require(name)
+		local v = env.package.loaded[name]
+		if v == nil then
+			v = assert(findchunk(name))(name)
+			if v == nil then v = true end
+			env.package.loaded[name] = v
+		end
+		return v
+	end
+
+	do
+		--[=[ TODO work around lfs?
+		local lfs = env.require 'ext.detect_lfs'
+		--]=]
+		-- [=[ or just work around other ext.io / os stuff that uses lfs?
+		local extos = env.require 'ext.os'
+		extos.mkdir = addCacheShim(extos.mkdir)
+		extos.rmdir = addCacheShim(extos.rmdir)
+		extos.isdir = addCacheShim(extos.isdir)
+		extos.listdir = addCacheShim(extos.listdir)
+		extos.rlistdir = addCacheShim(extos.rlistdir)
+		extos.fileexists = addCacheShim(extos.fileexists)
+		--]=]
+
+		local stdio = env.require 'ffi.c.stdio'
+		stdio.fopen = addCacheShim(stdio.fopen)
+
+		-- bypass GLApp :run() and ImGuiApp
+		-- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
+		-- or Windows-specific, lowercase the filename ..?
+		local GLApp = env.require 'glapp'
+		function GLApp:run() return self end
+		env.package.loaded['glapp.glapp'] = env.package.loaded['glapp']
+
+		local ImGuiApp = env.require 'imguiapp'
+		function ImGuiApp:initGL() end
+		function ImGuiApp:exit() end
+		function ImGuiApp:event() end
+		function ImGuiApp:update() end
+		env.package.loaded['imguiapp.imguiapp'] = env.package.loaded['imguiapp']
 	end
 	--]==]
 
