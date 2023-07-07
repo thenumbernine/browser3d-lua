@@ -250,7 +250,13 @@ function Tab:handleData(data)
 		local data, err = self:searchURLRelative(name)
 		if data then
 			local gen
-			gen, err = load(data, self.url..'/'..name, nil, self.env)
+			
+			-- TODO save 'dir' somewhere?
+			-- or break down self.url object?
+			local dir, pagename = self.url:match'(.*)/(.-)'
+		
+			-- TODO name is the require(), instead provide the found file name
+			gen, err = load(data, dir..'/'..name, nil, self.env)
 			if gen then return gen end
 		end
 		return err
@@ -307,7 +313,13 @@ function Tab:handleData(data)
 
 			local cacheName = self.cache[name] 
 			if not cacheName then
-				cacheName = 'cache/'..name	-- TODO hash url or something? idk...
+				local cacheDir = self.browser.cacheDir
+				cacheName = (cacheDir/name).path	-- TODO hash base url or something? idk...
+				--[[ should this be allowed?
+				if cacheName:sub(1,#cacheDir.path) ~= cacheDir.path then
+					return false, "tried to load file outside of the base directory"
+				end
+				--]]
 print('mapping file', name,'to', cacheName)
 				local data, err = self:loadURLRelative(name)
 				if not data then return data, err end
@@ -342,7 +354,7 @@ print('mapping file', name,'to', cacheName)
 	-- and maybe get rid of package searchers and loaders? maybe? not sure?
 	local function findchunk(name)
 		local errors = ("module '%s' not found"):format(name)
-		for i,searcher in ipairs(package.searchers) do
+		for i,searcher in ipairs(env.package.searchers) do
 			local chunk = searcher(name)
 			if type(chunk) == 'function' then
 				return chunk
@@ -385,6 +397,7 @@ print('mapping file', name,'to', cacheName)
 		-- or Windows-specific, lowercase the filename ..?
 		local GLApp = env.require 'glapp'
 		function GLApp:run() return self end
+		-- thanks to my package.path containing ?.lua;?/?.lua ...
 		env.package.loaded['glapp.glapp'] = env.package.loaded['glapp']
 
 		local ImGuiApp = env.require 'imguiapp'

@@ -10,8 +10,6 @@ local ig = require 'imgui'
 local ThreadManager = require 'threadmanager'
 local Tab = require 'browser.tab'
 
-file'cache':mkdir()
-
 local Browser = require 'imguiapp.withorbit'()
 
 Browser.title = 'Browser'
@@ -21,6 +19,9 @@ function Browser:initGL(...)
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
 
 	Browser.super.initGL(self, ...)
+
+	file'cache':mkdir()
+	self.cacheDir = file(file:cwd())/'cache'
 
 	--[[ use a package.searchers and give it precedence over local requires
 	-- TODO just do this for the page env' require() and that way we can block via http request
