@@ -511,6 +511,12 @@ function Tab:setPage(gen, ...)
 		gl.glPushMatrix()
 		-- TODO push texture, color, etc matrices?
 		--]]
+		-- [[
+		self.projMat = ffi.new('float[16]')
+		self.mvMat = ffi.new('float[16]')
+		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, self.projMat)
+		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, self.mvMat)
+		--]]
 	end
 end
 
@@ -564,27 +570,37 @@ function Tab:update(...)
 		self.browser.view:setup(self.browser.width / self.browser.height)
 	end
 
-	--[[
 	if self.page and self.page.initGL then
+	--[[
 		gl.glMatrixMode(gl.GL_MODELVIEW)
 		gl.glPopMatrix()
 		gl.glMatrixMode(gl.GL_PROJECTION)
 		gl.glPopMatrix()
 		gl.glPopAttrib(gl.GL_TRANSFORM_BIT)
-	end
 	--]]
-
+	-- [[
+		gl.glMatrixMode(gl.GL_PROJECTION)
+		gl.glLoadMatrixf(self.projMat)
+		gl.glMatrixMode(gl.GL_MODELVIEW)
+		gl.glLoadMatrixf(self.mvMat)
+	--]]
+	end
+	
 	self:safecallPage('update', ...)
 
-	--[[
 	if self.page and self.page.initGL then
+	--[[
 		gl.glPushAttrib(gl.GL_TRANSFORM_BIT)
 		gl.glMatrixMode(gl.GL_PROJECTION)
 		gl.glPushMatrix()
 		gl.glMatrixMode(gl.GL_MODELVIEW)
 		gl.glPushMatrix()
-	end
 	--]]
+	-- [[
+		gl.glGetFloatv(gl.GL_PROJECTION_MATRIX, self.projMat)
+		gl.glGetFloatv(gl.GL_MODELVIEW_MATRIX, self.mvMat)
+	--]]
+	end
 end
 
 function Tab:event(...)
