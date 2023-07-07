@@ -18,13 +18,13 @@ function Tab:init(args)
 	self.browser = assert(args.browser)
 	self.url = args.url or self.url or 'file://pages/test.lua'
 	assert(type(self.url) == 'string')
-	
+
 	-- start off a thread for our modified environment
 	self.thread = coroutine.create(self.threadLoop)
 	coroutine.resume(self.thread, self)
 end
 
--- call this from another thread 
+-- call this from another thread
 function Tab:resumecall(field, ...)
 	coroutine.resume(self.thread, self[field], self, ...)
 end
@@ -145,9 +145,9 @@ function Tab:handleData(data)
 		-- error and not errorPage because this is an internal browser code convention
 		error("handleData got bad data: "..tolua(data))
 	end
-	
+
 	-- sandbox env
-	
+
 	--[==[ simple sandbox:
 	local env = setmetatable({browser=self}, {__index=_G})
 	--[[ env.require to require remote ...
@@ -162,7 +162,7 @@ function Tab:handleData(data)
 			-- TODO this is basically another package.searchers
 			local cb, err = self:requireRelativeToLastPage(name)
 			if cb then
-				v = cb(name) 
+				v = cb(name)
 				if v == nil then v = true end
 				package.loaded[name] = v
 				return v
@@ -250,11 +250,11 @@ function Tab:handleData(data)
 		local data, err = self:searchURLRelative(name)
 		if data then
 			local gen
-			
+
 			-- TODO save 'dir' somewhere?
 			-- or break down self.url object?
 			local dir, pagename = self.url:match'(.*)/(.-)'
-		
+
 			-- TODO name is the require(), instead provide the found file name
 			gen, err = load(data, dir..'/'..name, nil, self.env)
 			if gen then return gen end
@@ -292,10 +292,10 @@ function Tab:handleData(data)
 	local function addCacheShim(origfunc)
 		return function(...)
 			local name = ...
-			
-			-- if proto isn't file then 
+
+			-- if proto isn't file then
 			-- ... fail for writing
-			-- ... fail for io.rename 
+			-- ... fail for io.rename
 			-- ... fail for io.mkdir
 			-- ... fail for io.popen
 			--[[ if we fall through to the original file always then we can't get paths relative to the file:// url...
@@ -304,29 +304,35 @@ function Tab:handleData(data)
 				return origfunc(...)
 			end
 			--]]
-			
+
 			--[[ this is io.open specific
 			-- how to put function-specific stuff in here ...
 			local name, mode = ...
 			if mode:find'w' then return nil, "can't write to remote urls" end
 			--]]
 
-			local cacheName = self.cache[name] 
+			local cacheName = self.cache[name]
 			if not cacheName then
 				local cacheDir = self.browser.cacheDir
 				cacheName = (cacheDir/name).path	-- TODO hash base url or something? idk...
-				--[[ should this be allowed?
+
+				-- [[ don't allow cached files to write outside the cache folder
 				if cacheName:sub(1,#cacheDir.path) ~= cacheDir.path then
 					return false, "tried to load file outside of the base directory"
 				end
 				--]]
-print('mapping file', name,'to', cacheName)
+
+				local dir, basename = file(cacheName):getdir()
+				assert(dir)
+				file(dir):mkdir(true)
+
+--print('mapping file', name,'to', cacheName)
 				local data, err = self:loadURLRelative(name)
 				if not data then return data, err end
 				file(cacheName):write(data)
 				self.cache[name] = cacheName
 			end
-			if not cacheName then 
+			if not cacheName then
 				return nil, "failed to create cache entry for file "..tostring(name)
 			end
 			return origfunc(cacheName, select(2, ...))
@@ -471,7 +477,7 @@ end
 
 function Tab:setPage(gen, ...)
 	self.cache = {}
-	
+
 	self:safecall(self.setPageProtected, self, gen, ...)
 
 	if not self.page then
