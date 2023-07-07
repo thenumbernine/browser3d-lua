@@ -15,7 +15,8 @@ end
 function Page:updateGUI()
 	ig.fullscreen(function()
 		ig.igText(tostring(f()))
-	end, 18)
+	end, 18	-- offset to not cover the url
+	)
 end
 
 return Page

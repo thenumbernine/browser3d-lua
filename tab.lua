@@ -485,7 +485,7 @@ function Tab:setPage(gen, ...)
 		return
 	end
 
-	-- init GL state
+	-- reset GL state
 	gl.glPopAttrib()
 	gl.glPushAttrib(gl.GL_ALL_ATTRIB_BITS)
 
@@ -501,20 +501,16 @@ function Tab:setPage(gen, ...)
 	if self.page
 	and self.page.initGL
 	then
+		self:safecallPage('initGL', self.env.require'gl', 'gl')
+	
 		--[[
-		self:safecallPage'initGL'
+		gl.glPushAttrib(gl.GL_TRANSFORM_BIT)
+		gl.glMatrixMode(gl.GL_PROJECTION)
+		gl.glPushMatrix()
+		gl.glMatrixMode(gl.GL_MODELVIEW)
+		gl.glPushMatrix()
+		-- TODO push texture, color, etc matrices?
 		--]]
-		-- [=[
-		local res, err = load([[
-local page = ...
-page:initGL(require 'gl', 'gl')
-]], self.url, nil, self.env
-		)
-		if not res then
-			self:setErrorPage('error calling initGL: '..tostring(err))
-		end
-		self:safecall(res, self.page)
-		--]=]
 	end
 end
 
@@ -568,7 +564,27 @@ function Tab:update(...)
 		self.browser.view:setup(self.browser.width / self.browser.height)
 	end
 
+	--[[
+	if self.page and self.page.initGL then
+		gl.glMatrixMode(gl.GL_MODELVIEW)
+		gl.glPopMatrix()
+		gl.glMatrixMode(gl.GL_PROJECTION)
+		gl.glPopMatrix()
+		gl.glPopAttrib(gl.GL_TRANSFORM_BIT)
+	end
+	--]]
+
 	self:safecallPage('update', ...)
+
+	--[[
+	if self.page and self.page.initGL then
+		gl.glPushAttrib(gl.GL_TRANSFORM_BIT)
+		gl.glMatrixMode(gl.GL_PROJECTION)
+		gl.glPushMatrix()
+		gl.glMatrixMode(gl.GL_MODELVIEW)
+		gl.glPushMatrix()
+	end
+	--]]
 end
 
 function Tab:event(...)
