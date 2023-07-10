@@ -39,24 +39,6 @@ function Tab:threadLoop()
 	end
 end
 
-function Tab:requireRelativeToLastPage(name)
-	local proto, rest = name:match'^([^:]*)://(.*)'
-	-- if no prefix is found ...
-	if not proto then
-		-- then first try assuming it is a relative path
-		if self.proto then
-			-- TODO here make a URL with path or whatever and change to 'name'
-		end
-	end
-	if proto == 'file' then
-		self:setPageFile(rest)
-	elseif proto == 'http' then
-		self:setPageHTTP(url)
-	else
-		self:setErrorPage("unknown protocol "..tostring(proto))
-	end
-end
-
 -- this function will expect a URL in proper format
 -- no implicit-files like :setPageURL (which should handle whatever the user puts in the titlebar)
 -- it'll return data or return false and an error message
@@ -66,6 +48,8 @@ function Tab:loadURL(url)
 		return self:loadFile(rest)
 	elseif proto == 'http' then
 		return self:loadHTTP(url)
+	elseif proto == 'https' then
+		return self:loadHTTPS(url)
 	else
 		return nil, "unknown protocol "..tostring(proto)
 	end
@@ -77,6 +61,24 @@ end
 
 function Tab:loadHTTP(url)
 	return require 'socket.http'.request(url)
+end
+
+-- [[ lua-ssl-based ... but that means now I have to build luassl for luajit...
+function Tab:loadHTTPS(url)
+	local data = table()
+	local res, err
+	xpcall(function()
+		local https = require 'ssl.https'
+		local ltn12 = require 'ltn12'
+		res, err = https.request{
+			url = url,
+			sink = ltn12.sink.table(data),
+			protocol = 'tlsv1',
+		}
+	end, function(err)
+		print(err..'\n'..debug.traceback())
+	end)
+	return res and data:concat(), err
 end
 
 -- TODO delineate some set of functions which error() shouldn't be permitted to be called within
@@ -107,6 +109,8 @@ function Tab:setPageURL(url)
 		self:setPageFile(rest)
 	elseif proto == 'http' then
 		self:setPageHTTP(url)
+	elseif proto == 'https' then
+		self:setPageHTTPS(url)
 	else
 		self:setErrorPage("unknown protocol "..tostring(proto))
 	end
@@ -137,6 +141,16 @@ function Tab:setPageHTTP(url)
 	end
 end
 
+function Tab:setPageHTTPS(url)
+	local data, reason = self:loadHTTPS(url)
+	if not data then
+		self:setErrorPage("couldn't load url "..tostring(url)..': '..tostring(reason))
+	else
+		self:handleData(data)
+	end
+end
+
+
 function Tab:handleData(data)
 	if type(data) ~= 'string' then
 		-- error and not errorPage because this is an internal browser code convention
@@ -144,31 +158,6 @@ function Tab:handleData(data)
 	end
 
 	-- sandbox env
-
-	--[==[ simple sandbox:
-	local env = setmetatable({browser=self}, {__index=_G})
-	--[[ env.require to require remote ...
-	env.require = function(name)
-		local v = package.loaded[name]
-		if v ~= nil then return v end
-		-- first try same url protocol
-		if self.proto ~= 'file' then
-			-- hmm how about file ext ...
-			-- now I need one extension for lua require files, another for lua-driven pages ...
-			-- or not? maybe I just need the page-loader to be routed through the remote-require function?
-			-- TODO this is basically another package.searchers
-			local cb, err = self:requireRelativeToLastPage(name)
-			if cb then
-				v = cb(name)
-				if v == nil then v = true end
-				package.loaded[name] = v
-				return v
-			end
-		end
-		return require(name)
-	end
-	--]]
-	--]==]
 
 	-- [==[ sandboxing _G from require()
 	-- this was my attempt to make a quick fix to using all previous glapp subclasses as pages ...
