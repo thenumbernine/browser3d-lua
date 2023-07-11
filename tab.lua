@@ -403,6 +403,7 @@ function Tab:handleData(data)
 		--]=]
 
 		local stdio = env.require 'ffi.c.stdio'
+		-- TODO for replacing ffi, wrap the shim in a ffi closure
 		stdio.fopen = addCacheShim(stdio.fopen)
 
 		-- bypass GLApp :run() and ImGuiApp
