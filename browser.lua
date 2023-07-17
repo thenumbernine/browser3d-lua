@@ -2,7 +2,7 @@
 local ffi = require 'browser.ffi'
 
 local class = require 'ext.class'
-local file = require 'ext.file'
+local path = require 'ext.path'
 local table = require 'ext.table'
 local gl = require 'gl'
 local sdl = require 'ffi.sdl'
@@ -20,8 +20,8 @@ function Browser:initGL(...)
 
 	Browser.super.initGL(self, ...)
 
-	file'cache':mkdir()
-	self.cacheDir = file(file:cwd())/'cache'
+	path'cache':mkdir()
+	self.cacheDir = path(path:cwd())/'cache'
 
 	--[[ use a package.searchers and give it precedence over local requires
 	-- TODO just do this for the page env' require() and that way we can block via http request

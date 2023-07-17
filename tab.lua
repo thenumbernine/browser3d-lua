@@ -1,7 +1,7 @@
 -- require this first so it modifies ffi first
 local ffi = require 'browser.ffi'
 
-local file = require 'ext.file'	-- TODO rename to path
+local path = require 'ext.path'
 local class = require 'ext.class'
 local table = require 'ext.table'
 local tolua = require 'ext.tolua'
@@ -65,7 +65,7 @@ function Tab:loadURL(url)
 end
 
 function Tab:loadFile(filename)
-	return file(filename):read()
+	return path(filename):read()
 end
 
 function Tab:loadHTTP(url)
@@ -102,8 +102,8 @@ function Tab:setPageURL(url)
 	self.proto = proto
 	if not proto then
 		-- try accessing it as a file
---print('file(url):exists()', file(url):exists(), url)
-		if file(url):exists() then
+--print('path(url):exists()', path(url):exists(), url)
+		if path(url):exists() then
 			proto = 'file'
 			self.proto = 'file'
 			self.url = 'file://'..url
@@ -126,13 +126,13 @@ function Tab:setPageURL(url)
 end
 
 function Tab:setPageFile(filename)
-	if not file(filename):exists() then
+	if not path(filename):exists() then
 		-- ... have the browser show a 'file missing' page
 		self:setErrorPage("couldn't load file "..tostring(filename))
 		return
 	end
 
-	local data, err = file(filename):read()
+	local data, err = path(filename):read()
 	if not data then
 		self:setErrorPage("couldn't read file "..tostring(filename)..": "..tostring(err))
 		return
@@ -362,14 +362,14 @@ function Tab:handleData(data)
 				end
 				--]]
 
-				local dir, basename = file(cacheName):getdir()
+				local dir, basename = path(cacheName):getdir()
 				assert(dir)
-				file(dir):mkdir(true)
+				path(dir):mkdir(true)
 
 --print('mapping file', filename,'to', cacheName)
 				local data, err = self:loadURLRelative(filename)
 				if not data then return data, err end
-				file(cacheName):write(data)
+				path(cacheName):write(data)
 				self.cache[filename] = cacheName
 			end
 			if not cacheName then
