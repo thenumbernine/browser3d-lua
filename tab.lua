@@ -15,14 +15,22 @@ local function call(f, ...)
 	return f(...)
 end
 
+local function replacearg(i, x, ...)
+	if select('#', ...) == 0 then return end
+	if i == 1 then
+		return x, replacearg(i-1, x, select(2, ...))
+	else
+		return (...), replacearg(i-1, x, select(2, ...))
+	end
+end
+
 function Tab:init(args)
 	self.browser = assert(args.browser)
 	self.url = args.url or self.url or 'file://pages/test.lua'
 	assert(type(self.url) == 'string')
 
 	-- start off a thread for our modified environment
-	self.thread = coroutine.create(self.threadLoop)
-	coroutine.resume(self.thread, self)
+	self.thread = self.browser.threads:add(self.threadLoop, self)
 end
 
 -- call this from another thread
@@ -128,7 +136,6 @@ function Tab:setPageFile(filename)
 		self:setErrorPage("couldn't read file "..tostring(filename)..": "..tostring(err))
 		return
 	end
-
 	self:handleData(data)
 end
 
@@ -320,9 +327,10 @@ function Tab:handleData(data)
 	-- this has to be run on the tab's thread
 	setfenv(0, env)
 
-	local function addCacheShim(origfunc)
+	local function addCacheShim(origfunc, argno)
+		argno = argno or 1
 		return function(...)
-			local name = ...
+			local filename = select(argno, ...)
 
 			-- if proto isn't file then
 			-- ... fail for writing
@@ -338,14 +346,14 @@ function Tab:handleData(data)
 
 			--[[ this is io.open specific
 			-- how to put function-specific stuff in here ...
-			local name, mode = ...
+			local filename, mode = ...
 			if mode:find'w' then return nil, "can't write to remote urls" end
 			--]]
 
-			local cacheName = self.cache[name]
+			local cacheName = self.cache[filename]
 			if not cacheName then
 				local cacheDir = self.browser.cacheDir
-				cacheName = (cacheDir/name).path	-- TODO hash base url or something? idk...
+				cacheName = (cacheDir/filename).path	-- TODO hash base url or something? idk...
 
 				-- [[ don't allow cached files to write outside the cache folder
 				if cacheName:sub(1,#cacheDir.path) ~= cacheDir.path then
@@ -357,16 +365,16 @@ function Tab:handleData(data)
 				assert(dir)
 				file(dir):mkdir(true)
 
---print('mapping file', name,'to', cacheName)
-				local data, err = self:loadURLRelative(name)
+--print('mapping file', filename,'to', cacheName)
+				local data, err = self:loadURLRelative(filename)
 				if not data then return data, err end
 				file(cacheName):write(data)
-				self.cache[name] = cacheName
+				self.cache[filename] = cacheName
 			end
 			if not cacheName then
-				return nil, "failed to create cache entry for file "..tostring(name)
+				return nil, "failed to create cache entry for file "..tostring(filename)
 			end
-			return origfunc(cacheName, select(2, ...))
+			return origfunc(replacearg(argno, cacheName, ...))
 		end
 	end
 	
@@ -405,6 +413,11 @@ function Tab:handleData(data)
 		local stdio = env.require 'ffi.c.stdio'
 		-- TODO for replacing ffi, wrap the shim in a ffi closure
 		stdio.fopen = addCacheShim(stdio.fopen)
+
+		-- NOTICE, like using stdio=require'ffi.c.stdio' stdio.fopen rather than ffi.C.fopen
+		-- same here, I'm going to require using require'imgui' over require'ffi.cimgui' for ImFontAtlas_AddFontFromFileTTF 
+		local imgui = env.require 'imgui'
+		imgui.ImFontAtlas_AddFontFromFileTTF = addCacheShim(imgui.ImFontAtlas_AddFontFromFileTTF, 2)
 
 		-- bypass GLApp :run() and ImGuiApp
 		-- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
