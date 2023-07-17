@@ -17,8 +17,9 @@ end
 
 local function replacearg(i, x, ...)
 	if select('#', ...) == 0 then return end
+	-- if I had a ternary (that worked with booleans) then I could turn this if into one line ...
 	if i == 1 then
-		return x, replacearg(i-1, x, select(2, ...))
+		return x, select(2, ...)
 	else
 		return (...), replacearg(i-1, x, select(2, ...))
 	end
@@ -424,6 +425,7 @@ function Tab:handleData(data)
 		-- or Windows-specific, lowercase the filename ..?
 		local GLApp = env.require 'glapp'
 		function GLApp:run() return self end
+		function GLApp:exit() end
 		-- thanks to my package.path containing ?.lua;?/?.lua ...
 		env.package.loaded['glapp.glapp'] = env.package.loaded['glapp']
 
@@ -493,6 +495,12 @@ function Tab:loadURLRelative(filename)
 end
 
 function Tab:setPageProtected(gen, ...)
+	-- [[ out with the old?
+	if self.page and self.page.exit then
+		self.page:exit()
+	end
+	--]]
+
 	self.page = gen(...)
 end
 
