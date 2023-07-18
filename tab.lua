@@ -74,16 +74,14 @@ end
 
 -- [[ lua-ssl-based ... but that means now I have to build luassl for luajit...
 function Tab:loadHTTPS(url)
+	print('Tab:loadHTTPS', url)
 	local data = table()
 	local res, err
 	xpcall(function()
 		local https = require 'ssl.https'
-		local ltn12 = require 'ltn12'
-		res, err = https.request{
-			url = url,
-			sink = ltn12.sink.table(data),
-			protocol = 'tlsv1',
-		}
+		res, err = https.request(url)
+		print('res', res)
+		print('err', err)
 	end, function(err)
 		print(err..'\n'..debug.traceback())
 	end)
