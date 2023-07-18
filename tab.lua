@@ -74,18 +74,17 @@ end
 
 -- [[ lua-ssl-based ... but that means now I have to build luassl for luajit...
 function Tab:loadHTTPS(url)
-	print('Tab:loadHTTPS', url)
-	local data = table()
-	local res, err
+print('Tab:loadHTTPS', url)
+	local res, code
 	xpcall(function()
 		local https = require 'ssl.https'
-		res, err = https.request(url)
-		print('res', res)
-		print('err', err)
+		res, code = https.request(url)
+print('res', res)
+print('code', code)
 	end, function(err)
 		print(err..'\n'..debug.traceback())
 	end)
-	return res and data:concat(), err
+	return code == 200 and res, res
 end
 
 -- TODO delineate some set of functions which error() shouldn't be permitted to be called within
