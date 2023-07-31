@@ -412,8 +412,8 @@ function Tab:handleData(data)
 		-- TODO for replacing ffi, wrap the shim in a ffi closure
 		stdio.fopen = addCacheShim(stdio.fopen)
 
-		-- NOTICE, like using stdio=require'ffi.c.stdio' stdio.fopen rather than ffi.C.fopen
-		-- same here, I'm going to require using require'imgui' over require'ffi.cimgui' for ImFontAtlas_AddFontFromFileTTF 
+		-- NOTICE, like using stdio=require 'ffi.req' 'c.stdio' stdio.fopen rather than ffi.C.fopen
+		-- same here, I'm going to require using require'imgui' over require 'ffi.req' 'cimgui' for ImFontAtlas_AddFontFromFileTTF 
 		local imgui = env.require 'imgui'
 		imgui.ImFontAtlas_AddFontFromFileTTF = addCacheShim(imgui.ImFontAtlas_AddFontFromFileTTF, 2)
 
