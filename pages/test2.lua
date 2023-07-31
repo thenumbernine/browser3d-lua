@@ -3,7 +3,7 @@ local glreport = require 'gl.report'
 local Image = require 'image'
 local GLProgram = require 'gl.program'
 local GLTex2D = require 'gl.tex2d'
-local sdl = require 'ffi.sdl'
+local sdl = require 'ffi.req' 'sdl'
 local ig = require 'imgui'
 local matrix_ffi = require 'matrix.ffi'
 

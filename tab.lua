@@ -408,7 +408,7 @@ function Tab:handleData(data)
 		extos.fileexists = addCacheShim(extos.fileexists)
 		--]=]
 
-		local stdio = env.require 'ffi.c.stdio'
+		local stdio = env.require 'ffi.req' 'c.stdio'
 		-- TODO for replacing ffi, wrap the shim in a ffi closure
 		stdio.fopen = addCacheShim(stdio.fopen)
 

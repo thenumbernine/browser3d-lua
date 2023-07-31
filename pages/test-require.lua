@@ -1,5 +1,4 @@
 local gl = require 'gl'
-local sdl = require 'ffi.sdl'
 local ig = require 'imgui'
 local f = require 'test-required'
 local Page = {}
