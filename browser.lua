@@ -21,7 +21,7 @@ function Browser:initGL(...)
 	Browser.super.initGL(self, ...)
 
 	path'cache':mkdir()
-	self.cacheDir = path(path:cwd())/'cache'
+	self.cacheDir = path:cwd()/'cache'
 
 	--[[ use a package.searchers and give it precedence over local requires
 	-- TODO just do this for the page env' require() and that way we can block via http request

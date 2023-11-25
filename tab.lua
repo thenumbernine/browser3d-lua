@@ -361,7 +361,7 @@ function Tab:handleData(data)
 
 				local dir, basename = path(cacheName):getdir()
 				assert(dir)
-				path(dir):mkdir(true)
+				dir:mkdir(true)
 
 --print('mapping file', filename,'to', cacheName)
 				local data, err = self:loadURLRelative(filename)
