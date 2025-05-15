@@ -426,12 +426,11 @@ function Tab:handleData(data)
 		-- thanks to my package.path containing ?.lua;?/?.lua ...
 		env.package.loaded['glapp.glapp'] = env.package.loaded['glapp']
 
-		local ImGuiApp = env.require 'imguiapp'
+		local ImGuiApp = env.require 'imgui.app'
 		function ImGuiApp:initGL() end
 		function ImGuiApp:exit() end
 		function ImGuiApp:event() end
 		function ImGuiApp:update() end
-		env.package.loaded['imguiapp.imguiapp'] = env.package.loaded['imguiapp']
 	end
 	--]==]
 

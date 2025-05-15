@@ -10,7 +10,7 @@ local ig = require 'imgui'
 local ThreadManager = require 'threadmanager'
 local Tab = require 'browser.tab'
 
-local Browser = require 'imguiapp.withorbit'()
+local Browser = require 'imgui.appwithorbit'()
 
 Browser.title = 'Browser'
 
