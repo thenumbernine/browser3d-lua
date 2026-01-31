@@ -1,8 +1,7 @@
 local gl = require 'gl'
 local ig = require 'imgui'
 local vec3f = require 'vec-ffi.vec3f'
-local matrix_ffi = require 'matrix.ffi'
-matrix_ffi.real = 'float'
+local vec4x4f = require 'vec-ffi.vec4x4f'
 return {
 	title = 'mesh demo',
 	init = function(self)
@@ -11,9 +10,9 @@ return {
 		self.mesh = require 'mesh.objloader'():load'cube.obj'
 		self.shader = self.mesh:makeShader()
 		self.shader:useNone()
-		self.modelMatrix = matrix_ffi{{1,0,0,0},{0,1,0,0},{0,0,1,0},{0,0,0,1}}
-		self.viewMatrix = matrix_ffi.zeros{4,4}
-		self.projectionMatrix = matrix_ffi.zeros{4,4}
+		self.modelMatrix = vec4x4f():setIdent()
+		self.viewMatrix = vec4x4f():setIdent()
+		self.projectionMatrix = vec4x4f():setIdent()
 		gl.glEnable(gl.GL_DEPTH_TEST)
 		gl.glClearColor(0,0,0,0)
 	end,

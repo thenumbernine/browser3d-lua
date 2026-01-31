@@ -1,0 +1,34 @@
+--------------------------------------------
+-- generated with dist/build-distinfo.rua --
+--------------------------------------------
+
+name = "browser"
+files = {
+	"README.md",
+	"browser.lua",
+	"errorpage.lua",
+	"ffi.lua",
+	"pages/cube.mtl",
+	"pages/cube.obj",
+	"pages/cube.png",
+	"pages/test-error.lua",
+	"pages/test-mesh.lua",
+	"pages/test-require.lua",
+	"pages/test-required.lua",
+	"pages/test.lua",
+	"pages/test2.lua",
+	"run.lua",
+	"sandbox.lua",
+	"tab.lua",
+}
+deps = {
+	"ext",
+	"gl",
+	"glapp",
+	"image",
+	"imgui",
+	"mesh",
+	"sdl",
+	"threadmanager",
+	"vec-ffi",
+}
