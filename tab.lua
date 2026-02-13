@@ -420,11 +420,9 @@ function Tab:handleData(data)
 		-- bypass GLApp :run() and ImGuiApp
 		-- TODO what about windows and case-sensitivity?  all case permutations of glapp need to be included ...
 		-- or Windows-specific, lowercase the filename ..?
-		local GLApp = env.require 'glapp'
+		local GLApp = env.require 'gl.app'
 		function GLApp:run() return self end
 		function GLApp:exit() end
-		-- thanks to my package.path containing ?.lua;?/?.lua ...
-		env.package.loaded['glapp.glapp'] = env.package.loaded['glapp']
 
 		local ImGuiApp = env.require 'imgui.app'
 		function ImGuiApp:initGL() end

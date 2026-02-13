@@ -20,7 +20,7 @@ local GLSceneObject = require 'gl.sceneobject'
 local GLTex2D = require 'gl.tex2d'
 local ig = require 'imgui'
 local getTime = require 'ext.timer'.getTime
-local View = require 'glapp.view'
+local View = require 'app3d.view'
 
 local Page ={}
 

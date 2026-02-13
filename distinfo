@@ -22,9 +22,9 @@ files = {
 	"tab.lua",
 }
 deps = {
+	"app3d",
 	"ext",
 	"gl",
-	"glapp",
 	"image",
 	"imgui",
 	"mesh",
